@@ -35,6 +35,7 @@ mobile clients, billing, and multi-tenancy.
 | # | Decision | Date |
 | --- | --- | --- |
 | D1 | The chat is rooms: agents and people post in a room, and every approved member reads its history. Autonomous agent-to-agent addressing and routing is out of scope. | 2026-10-25 |
+| D8 | Rooms have the roles `pleb`, `consul`, and `dispatcher`. A pleb question goes to the dispatcher JEV, which selects one or more consuls within a 400 ms budget. One selected consul answers; several vote by absolute majority, in at most three rounds. Other plebs stay silent. If JEV misses the budget or fails, the question falls back to all active consuls. | 2026-10-25 |
 
 ## Owner decisions still open
 
@@ -46,6 +47,35 @@ mobile clients, billing, and multi-tenancy.
 | D5 | Is history kept after access is revoked, and is revocation reversible? | History is kept; revocation is reversible by a new approval, and each transition is audited. |
 | D6 | Single installation or multi-tenant? | Single installation. |
 | D7 | Agent authentication: issued API keys or an external identity provider? | Issued API keys, stored hashed, revocable without a restart. |
+
+## Consensus protocol (D8)
+
+Roles are per room membership: `pleb`, `consul`, and `dispatcher`. JEV is the
+dispatcher of an installation.
+
+1. A pleb question opens a deliberation with its own identity.
+2. JEV receives the question and answers within 400 ms with a schema-validated
+   selection of one or more consuls and a short rationale.
+3. One selected consul answers directly. Several selected consuls vote by
+   absolute majority of the selected set, `floor(k/2)+1`, in at most three
+   rounds; round two is a runoff between the top two, and round three is final.
+4. Without a majority after three rounds the room publishes no answer and the
+   question escalates to an administrator.
+5. A pleb cannot answer another pleb. Only consuls publish answers, and only
+   inside a deliberation.
+6. JEV cannot answer, select itself, select a pleb, or select a revoked consul.
+7. If JEV misses 400 ms, returns an invalid selection, or is revoked, the
+   question falls back to all active consuls, and the audit records why.
+8. Every routing decision and every vote is audited with actor, round, and time.
+   Plebs see the final answer only.
+9. A revocation during a deliberation removes the agent from the quorum; if the
+   majority no longer holds, the result is invalidated and a new round starts.
+10. A routing decision is a list of identifiers, not free text, and JEV has no
+    tool access, so a question cannot redirect the selection.
+
+The 400 ms bound covers the time from accepting the question to publishing the
+routing decision, including validation and the audit write; model inference has
+to fit inside it.
 
 ## Estimate
 
@@ -65,6 +95,8 @@ that use HTTP and the stream; no billing.
 | Agent identity: registration, API keys, admin login, sessions, roles | 6–8 |
 | Approval workflow and audit record | 4–6 |
 | Rooms: lifecycle, approval, membership, roles | 4–6 |
+| Question routing: JEV, 400 ms budget, structured selection, fallback | 5–8 |
+| Consensus deliberation: roles, three rounds, majority, provenance | 9–14 |
 | Messages: model, ordering, idempotency, pagination | 4–5 |
 | Realtime: server-sent events, durable cursor, catch-up, backpressure | 4–6 |
 | Revocation: epoch, per-request check, connection drop, cross-instance | 4–6 |
@@ -72,15 +104,19 @@ that use HTTP and the stream; no billing.
 | Administrative console | 6–9 |
 | Tests and 75% coverage across lines, branches, and functions | 6–9 |
 | Deployment, README, and a smoke end-to-end run | 3–5 |
-| Process gates: 8 to 11 changes at 2 to 3.5 hours each | 18–30 |
+| Process gates: 10 to 13 changes at 2 to 3.5 hours each | 23–37 |
 
-Total: **75 to 115 hours, median about 95**. Confidence is low to medium until
+Total: **93 to 142 hours, median about 117**. Confidence is low to medium until
 D2 is answered; answering it narrows the range by roughly 15%.
+
+Decision D8 adds about 19 to 29 hours, including the two extra changes and their
+gates. The variance is dominated by the 400 ms budget, not by the voting logic.
 
 Variants:
 
 - A thin slice (one room, registration and approval, revocation, no console
-  polish): about 40 to 55 hours under these gates, 25 to 35 without them.
+  polish, no consensus): about 40 to 55 hours under these gates, 25 to 35
+  without them.
 - API only, no console: about 55 to 75 hours.
 - Autonomous agent-to-agent routing: out of scope by decision D1; revisiting it
   would add 15 to 25 hours.
@@ -94,12 +130,14 @@ Variants:
    instance are where the hours go, not the CRUD.
 2. Realtime delivery and reconnect semantics: a durable cursor, catch-up after
    a disconnect, and bounded buffers so a slow consumer never blocks a command.
-3. Two approval flows plus membership approval, each with states, notifications,
+3. The consensus protocol: three rounds, absolute majority, runoff, invalidation
+   on revocation, and a provenance record that an administrator can audit.
+4. Two approval flows plus membership approval, each with states, notifications,
    audit, and tests.
-4. The administrative console, which is expensive relative to the rest if no
+5. The administrative console, which is expensive relative to the rest if no
    application shell exists yet.
-5. Process gates: 18 to 30 hours of the total, spread over every change.
-6. Branch coverage of the console, which is the most likely cause of overrun.
+6. Process gates: 23 to 37 hours of the total, spread over every change.
+7. Branch coverage of the console, which is the most likely cause of overrun.
 
 ## Risks
 
@@ -116,6 +154,17 @@ Variants:
   which of them are required.
 - The gates themselves are 20 to 30% of the total; they are worth it only if
   the project continues past the first delivery.
+- A 400 ms bound is aggressive for a model-backed dispatcher. It is realistic
+  only with a small, warm model and a short prompt. Measure the 95th percentile
+  before building on it; if it cannot hold, decide whether the bound or the
+  dispatcher is the requirement, because a dispatcher that usually times out
+  adds a turn and saves nothing.
+- The dispatcher is a prompt-injection target: a pleb controls the question text
+  and could try to steer the selection. The structured, validated selection and
+  the absence of tools limit the damage, but the routing audit is what makes a
+  bad decision visible.
+- Consensus is expensive per question: up to k consuls times three rounds. If
+  the room is busy, the cost is the product, not the infrastructure.
 
 ## Proposed phasing
 
@@ -126,12 +175,16 @@ Each phase is one OpenSpec change, developed on its own branch and worktree.
    and the revocation semantics, including the numeric bound.
 3. `implement-agent-registration-and-approval`.
 4. `implement-rooms-and-membership-approval`.
-5. `implement-message-timeline`.
-6. `implement-realtime-stream`.
-7. `implement-instant-revocation`.
-8. `build-admin-console`.
-9. `implement-agent-client`.
-10. `harden-and-qualify`: crash points, revocation races, coverage, and a smoke
+5. `implement-question-routing`: JEV, the 400 ms budget, the structured
+   selection, and the fallback to all consuls.
+6. `implement-consensus-deliberation`: roles, three rounds, absolute majority,
+   runoff, invalidation, and provenance.
+7. `implement-message-timeline`.
+8. `implement-realtime-stream`.
+9. `implement-instant-revocation`.
+10. `build-admin-console`.
+11. `implement-agent-client`.
+12. `harden-and-qualify`: crash points, revocation races, coverage, and a smoke
     run from a fresh installation.
 
 ## Sources

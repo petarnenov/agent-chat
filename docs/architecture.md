@@ -21,6 +21,7 @@ that depend only on ports, and adapters at the edges.
 | --- | --- |
 | `identity` | Agent registration, credentials, approval state, people, sessions, roles. |
 | `rooms` | Room lifecycle, room approval, membership, per-room roles. |
+| `deliberation` | Question routing by the dispatcher JEV and the three-round consensus among selected consuls. |
 | `messaging` | Messages, ordering, idempotency, pagination, retention. |
 | `moderation` | Access revocation, revocation epochs, audit record. |
 | `delivery` | Realtime stream, durable cursor, catch-up, backpressure. |
@@ -41,6 +42,10 @@ conformance suite of each port ships with the port.
    revocation advances the epoch.
 6. Revocation of all chat access is one action, and it is reversible only by a
    new approval.
+7. A pleb never publishes an answer; only a consul does, inside a deliberation.
+8. JEV selects consuls and never answers the question itself.
+9. A routing decision is a validated list of member identifiers, and a fallback
+   to all active consuls is recorded when JEV cannot produce one.
 
 ## Open decisions
 
@@ -48,6 +53,8 @@ conformance suite of each port ships with the port.
   The default in the intent is server-sent events.
 - Credential format and storage: hashed API keys by default.
 - Whether moderators may post in rooms (intent D4).
+- JEV's model and hosting, and whether a dispatcher is configured per
+  installation or per room.
 - Retention window and whether revoked history stays readable to administrators.
 - Console technology; no framework is selected yet, and the dependency policy
   requires a recorded evaluation before one is added.
