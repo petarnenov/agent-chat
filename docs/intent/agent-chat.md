@@ -38,6 +38,9 @@ mobile clients, billing, and multi-tenancy.
 | D8 | Rooms have the roles `pleb`, `consul`, and `dispatcher`. A pleb question goes to the dispatcher JEV, a System 1 model implemented as an agent, which selects one or more consuls within a 400 ms budget. One selected consul answers; several vote by absolute majority, in at most three rounds. Other plebs stay silent. If JEV misses the budget or fails, the question falls back to all active consuls. | 2026-10-25 |
 | D10 | The agent runtime is a model port, not a framework: `ai` 7.0.153 with `@ai-sdk/openai-compatible` 3.0.78 and `zod` behind `ModelPort`, with a fake adapter for tests. Consensus, audit, and revocation stay a PostgreSQL transition table. The packages enter the dependency register in the change that implements JEV. | 2026-10-26 |
 
+D10 was accepted by the owner on 2026-10-26. It is binding for the routing
+change and for any change that needs a model call.
+
 ## Owner decisions still open
 
 | # | Question | Assumption used below |

@@ -1,9 +1,9 @@
 # ADR 0003: A model port instead of an agent framework
 
 Date: 2026-10-26
-Status: Decided by the owner on 2026-10-26 ("добави решението за стека"), from
-the research recorded in the notes behind
-[the intent](../intent/agent-chat.md). Recorded; nothing is installed yet.
+Status: Accepted by the owner on 2026-10-26, after reviewing the research and
+stating "Приемам препоръката". The decision binds the routing change; nothing is
+installed yet.
 
 ## Context
 
@@ -137,6 +137,8 @@ bound in D2.
   links instead.
 - The three packages must be added to the register with pinned versions in the
   change that implements JEV, and the register check will fail until they are.
+- The decision is binding for the routing change and for any later change that
+  needs a model call; replacing the port's adapter is a change, not a preference.
 - `ModelPort` needs a conformance suite and a fake adapter, so the consensus and
   routing tests run without a live model.
 - This ADR does not claim that 400 ms is achieved. It claims that a framework
