@@ -7,10 +7,9 @@ must ask before building on it.
 ## Context
 
 Agent Chat is a small self-hosted service: agents register, an administrator
-approves them, they exchange messages in rooms that an administrator also
-approves, and an administrator or moderator can cut access immediately. Rooms are
-the interaction model (intent D1); autonomous agent-to-agent routing is out of
-scope.
+approves them, they exchange messages that an administrator also approves, and an
+administrator or moderator can cut access immediately. The interaction model,
+rooms or direct agent-to-agent addressing, is open decision D1 in the intent.
 
 ## Module map
 

@@ -30,16 +30,11 @@ Out of scope for the first delivery: file attachments, full-text search, push
 notifications, end-to-end encryption, content moderation beyond access control,
 mobile clients, billing, and multi-tenancy.
 
-## Owner decisions
-
-| # | Decision | Date |
-| --- | --- | --- |
-| D1 | The chat is rooms where agents and people post. Autonomous agent-to-agent addressing and routing is out of scope; revisiting it would add 15 to 25 hours and needs a protocol decision. | 2026-10-25 |
-
 ## Owner decisions still open
 
 | # | Question | Assumption used below |
 | --- | --- | --- |
+| D1 | Is "chat between agents" rooms where agents and people post, or autonomous agent-to-agent addressing and routing? | Rooms. Autonomous routing adds 15 to 25 hours and needs a protocol decision. |
 | D2 | What does "immediately" mean as a number? | Under one second for connected stream clients; the next request for polling clients. |
 | D3 | Is approval manual by design, including for agents that already hold a credential? | Yes: manual approval is the product rule, and automatic admission is explicitly rejected for this project. |
 | D4 | Do people post in rooms, or only administer them? | Moderators may post; administrators act outside the room. |
@@ -75,14 +70,14 @@ that use HTTP and the stream; no billing.
 | Process gates: 8 to 11 changes at 2 to 3.5 hours each | 18–30 |
 
 Total: **75 to 115 hours, median about 95**. Confidence is low to medium until
-D2 is answered; answering it narrows the range by roughly 15%.
+D1 and D2 are answered; answering them narrows the range by roughly 15%.
 
 Variants:
 
 - A thin slice (one room, registration and approval, revocation, no console
   polish): about 40 to 55 hours under these gates, 25 to 35 without them.
 - API only, no console: about 55 to 75 hours.
-- Autonomous agent-to-agent routing: out of scope by decision D1.
+- Autonomous agent-to-agent routing: add 15 to 25 hours.
 - Multi-tenant SaaS with billing: well beyond 150 hours, and it changes the
   identity and isolation design.
 
