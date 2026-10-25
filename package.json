@@ -1,0 +1,32 @@
+{
+  "name": "agent-chat",
+  "version": "0.1.0",
+  "description": "Agent-to-agent chat with admin-approved registration, admin-approved rooms, and instant access revocation.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "author": "Petar Nenov",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check:types": "tsc -p tsconfig.check.json",
+    "test": "npm run build && mkdir -p coverage && node --experimental-strip-types --test --experimental-test-coverage --test-coverage-include='dist/**/*.js' --test-coverage-exclude='**/node_modules/**' --test-coverage-lines=75 --test-coverage-branches=75 --test-coverage-functions=75 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.info test/*.test.ts && node --experimental-strip-types scripts/check-coverage-scope.ts coverage/lcov.info",
+    "openspec": "openspec",
+    "release": "semantic-release",
+    "verify:comments": "node --experimental-strip-types scripts/check-comment-length.ts",
+    "verify:dependencies": "node --experimental-strip-types scripts/check-dependency-register.ts",
+    "verify:archive": "node --experimental-strip-types scripts/check-archive-dry-run.ts"
+  },
+  "devDependencies": {
+    "@fission-ai/openspec": "1.14.3",
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/github": "12.0.10",
+    "@semantic-release/release-notes-generator": "14.1.1",
+    "@types/node": "24.19.2",
+    "conventional-changelog-conventionalcommits": "9.3.1",
+    "semantic-release": "25.0.9",
+    "typescript": "5.9.3"
+  }
+}

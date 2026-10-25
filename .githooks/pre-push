@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks the push unless the repository checks pass; `make hooks` enables it.
+NODE_PIN="$(cat .nvmrc)" bash scripts/with-pinned-node.sh use bash scripts/run-node-script.sh scripts/check-pre-push.ts || exit 1
+exec make verify

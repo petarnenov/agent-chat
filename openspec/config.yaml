@@ -1,0 +1,6 @@
+schema: spec-driven
+context: |
+  Project: Agent Chat, a self-hosted agent-to-agent chat.
+  Repository documentation, comments, and artifacts are English only.
+  Owner-facing chat, progress updates, and answers are Bulgarian only.
+  Product-owned code uses TypeScript.

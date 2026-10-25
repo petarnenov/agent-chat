@@ -1,0 +1,3 @@
+#!/bin/sh
+# Reports a dependency register left stale by a merge; never blocks it.
+NODE_PIN="$(cat .nvmrc)" bash scripts/with-pinned-node.sh use bash scripts/run-node-script.sh scripts/check-dependency-register.ts --report || true
