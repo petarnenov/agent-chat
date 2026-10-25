@@ -6,3 +6,6 @@ coverage/
 .env.*
 .npmrc
 .DS_Store
+# Owner-facing research artifacts: Bulgarian, not repository content.
+research_notes/
+reports/

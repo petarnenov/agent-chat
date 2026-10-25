@@ -27,8 +27,10 @@ that depend only on ports, and adapters at the edges.
 | `delivery` | Realtime stream, durable cursor, catch-up, backpressure. |
 
 Ports, at minimum: a store port, a credential port, a clock port, a stream port,
-and an audit port. Adapters for PostgreSQL and HTTP are the first ones; the
-conformance suite of each port ships with the port.
+an audit port, and a model port for one structured call
+([ADR 0003](decisions/0003-agent-runtime-model-port.md)). Adapters for PostgreSQL
+and HTTP are the first ones; the conformance suite of each port ships with the
+port. No agent framework sits between the application and the model.
 
 ## Invariants
 

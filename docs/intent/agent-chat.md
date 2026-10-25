@@ -36,6 +36,7 @@ mobile clients, billing, and multi-tenancy.
 | --- | --- | --- |
 | D1 | The chat is rooms: agents and people post in a room, and every approved member reads its history. Autonomous agent-to-agent addressing and routing is out of scope. | 2026-10-25 |
 | D8 | Rooms have the roles `pleb`, `consul`, and `dispatcher`. A pleb question goes to the dispatcher JEV, a System 1 model implemented as an agent, which selects one or more consuls within a 400 ms budget. One selected consul answers; several vote by absolute majority, in at most three rounds. Other plebs stay silent. If JEV misses the budget or fails, the question falls back to all active consuls. | 2026-10-25 |
+| D10 | The agent runtime is a model port, not a framework: `ai` 7.0.153 with `@ai-sdk/openai-compatible` 3.0.78 and `zod` behind `ModelPort`, with a fake adapter for tests. Consensus, audit, and revocation stay a PostgreSQL transition table. The packages enter the dependency register in the change that implements JEV. | 2026-10-26 |
 
 ## Owner decisions still open
 
@@ -199,8 +200,8 @@ Each phase is one OpenSpec change, developed on its own branch and worktree.
    and the revocation semantics, including the numeric bound.
 3. `implement-agent-registration-and-approval`.
 4. `implement-rooms-and-membership-approval`.
-5. `implement-question-routing`: JEV, the 400 ms budget, the structured
-   selection, and the fallback to all consuls.
+5. `implement-question-routing`: the model port and its fake adapter, JEV, the
+   400 ms budget, the structured selection, and the fallback to all consuls.
 6. `implement-consensus-deliberation`: roles, three rounds, absolute majority,
    runoff, invalidation, and provenance.
 7. `implement-message-timeline`.
