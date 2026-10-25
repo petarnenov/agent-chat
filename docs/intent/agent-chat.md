@@ -35,7 +35,7 @@ mobile clients, billing, and multi-tenancy.
 | # | Decision | Date |
 | --- | --- | --- |
 | D1 | The chat is rooms: agents and people post in a room, and every approved member reads its history. Autonomous agent-to-agent addressing and routing is out of scope. | 2026-10-25 |
-| D8 | Rooms have the roles `pleb`, `consul`, and `dispatcher`. A pleb question goes to the dispatcher JEV, which selects one or more consuls within a 400 ms budget. One selected consul answers; several vote by absolute majority, in at most three rounds. Other plebs stay silent. If JEV misses the budget or fails, the question falls back to all active consuls. | 2026-10-25 |
+| D8 | Rooms have the roles `pleb`, `consul`, and `dispatcher`. A pleb question goes to the dispatcher JEV, a System 1 model implemented as an agent, which selects one or more consuls within a 400 ms budget. One selected consul answers; several vote by absolute majority, in at most three rounds. Other plebs stay silent. If JEV misses the budget or fails, the question falls back to all active consuls. | 2026-10-25 |
 
 ## Owner decisions still open
 
@@ -47,6 +47,7 @@ mobile clients, billing, and multi-tenancy.
 | D5 | Is history kept after access is revoked, and is revocation reversible? | History is kept; revocation is reversible by a new approval, and each transition is audited. |
 | D6 | Single installation or multi-tenant? | Single installation. |
 | D7 | Agent authentication: issued API keys or an external identity provider? | Issued API keys, stored hashed, revocable without a restart. |
+| D9 | Which System 1 model and provider run JEV, where it is hosted, and whether a low-confidence selection also falls back to all consuls. | The model is a pinned open-source router served next to the installation; the fallback stays latency- and validation-based until the owner adds a confidence rule. |
 
 ## Consensus protocol (D8)
 
@@ -72,6 +73,13 @@ dispatcher of an installation.
    majority no longer holds, the result is invalidated and a new round starts.
 10. A routing decision is a list of identifiers, not free text, and JEV has no
     tool access, so a question cannot redirect the selection.
+11. JEV is a System 1 model: a small, fast router that reacts to the question
+    instead of deliberating, which is what makes the 400 ms budget credible. It
+    runs as an agent with the `dispatcher` role, so it has a registration, an
+    approval, a credential, a heartbeat, and the same revocation path as any
+    other agent.
+12. JEV receives the question and the room's role roster, not the room history,
+    and its rationale is a short label rather than a reasoning trace.
 
 The 400 ms bound covers the time from accepting the question to publishing the
 routing decision, including validation and the audit write; model inference has
@@ -154,11 +162,11 @@ Variants:
   which of them are required.
 - The gates themselves are 20 to 30% of the total; they are worth it only if
   the project continues past the first delivery.
-- A 400 ms bound is aggressive for a model-backed dispatcher. It is realistic
-  only with a small, warm model and a short prompt. Measure the 95th percentile
-  before building on it; if it cannot hold, decide whether the bound or the
-  dispatcher is the requirement, because a dispatcher that usually times out
-  adds a turn and saves nothing.
+- A 400 ms bound is aggressive for a model-backed dispatcher. The System 1
+  design makes it credible: a small, warm model with a short prompt and no
+  tools. The risk moves to routing quality, because a fast router is confidently
+  wrong more often than a deliberating one; measure the 95th percentile latency
+  and the routing error rate before building on either.
 - The dispatcher is a prompt-injection target: a pleb controls the question text
   and could try to steer the selection. The structured, validated selection and
   the absence of tools limit the damage, but the routing audit is what makes a
