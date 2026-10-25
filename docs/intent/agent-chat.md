@@ -47,7 +47,7 @@ mobile clients, billing, and multi-tenancy.
 | D5 | Is history kept after access is revoked, and is revocation reversible? | History is kept; revocation is reversible by a new approval, and each transition is audited. |
 | D6 | Single installation or multi-tenant? | Single installation. |
 | D7 | Agent authentication: issued API keys or an external identity provider? | Issued API keys, stored hashed, revocable without a restart. |
-| D9 | Which System 1 model and provider run JEV, where it is hosted, and whether a low-confidence selection also falls back to all consuls. | The model is a pinned open-source router served next to the installation; the fallback stays latency- and validation-based until the owner adds a confidence rule. |
+| D9 | Which System 1 model and provider run JEV, where it is hosted, whether a low-confidence selection also falls back to all consuls, and whether JEV is provisioned by the installation bootstrap or approved like any other agent. | The model is a pinned open-source router served next to the installation; JEV is provisioned by the bootstrap with the `dispatcher` role, and a confidence rule is added only after measurement. |
 
 ## Consensus protocol (D8)
 
@@ -84,6 +84,22 @@ dispatcher of an installation.
 The 400 ms bound covers the time from accepting the question to publishing the
 routing decision, including validation and the audit write; model inference has
 to fit inside it.
+
+### JEV implementation constraints
+
+These follow from the design; they are not new owner decisions.
+
+- JEV runs as a long-lived warm process. A cold start breaks the 400 ms budget,
+  so its readiness is checked like any other dependency, and a cold JEV counts as
+  a failed routing decision that falls back.
+- The selection is constrained to a JSON schema at decode time, not validated
+  after free-form generation, because a rejected generation looks like a timeout
+  to the caller and hides the cause.
+- Concurrent questions are queued per room with a bounded depth. Beyond the
+  bound the question falls back to all consuls instead of waiting, so that load
+  degrades the routing, not the answer.
+- JEV's availability, latency, and routing error rate are recorded, because the
+  fallback hides a broken dispatcher from the room.
 
 ## Estimate
 
