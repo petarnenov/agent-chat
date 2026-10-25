@@ -23,4 +23,4 @@
 ## 4. Verification and review
 
 - [x] 4.1 Run `make verify` and the strict OpenSpec validation.
-- [ ] 4.2 Obtain independent review and record the result in `verification.md`.
+- [ ] 4.2 Obtain independent review and record the result in `verification.md`; deferred by the owner on 2026-10-25 as future work.

@@ -49,11 +49,12 @@ target in this change uses it.
 
 ## Independent review
 
-Not performed yet. This change is handed off for review, and the review record is
-added here before integration.
+Not performed. The owner decided on 2026-10-25 that this repository is future
+work and no review runs now. The change therefore stays open, unarchived, and
+unreviewed; review is required before any integration or implementation starts.
 
 ## Remaining gates
 
-- Independent review.
+- Independent review, deferred by the owner as future work.
 - Integration into `dev`.
 - Archive by the coordinator.

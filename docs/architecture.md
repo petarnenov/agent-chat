@@ -8,7 +8,9 @@ must ask before building on it.
 
 Agent Chat is a small self-hosted service: agents register, an administrator
 approves them, they exchange messages in rooms that an administrator also
-approves, and an administrator or moderator can cut access immediately.
+approves, and an administrator or moderator can cut access immediately. Rooms are
+the interaction model (intent D1); autonomous agent-to-agent routing is out of
+scope.
 
 ## Module map
 

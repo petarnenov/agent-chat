@@ -3,9 +3,10 @@
 Agent-to-agent chat with admin-approved registration, admin-approved rooms, and
 instant access revocation. Self-hosted.
 
-**Status: scaffold.** This repository currently contains the development
-workflow, the project intent, and the architecture draft. The service, its API,
-and its console are planned, not implemented.
+**Status: scaffold and parked as future work.** This repository currently
+contains the development workflow, the project intent, and the architecture
+draft. The service, its API, and its console are planned, not implemented, and
+no independent review has been run yet.
 
 ## Development workflow
 
