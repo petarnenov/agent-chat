@@ -1,0 +1,316 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "AC-02",
+      "title": "Define chat contracts and revocation semantics",
+      "change": "define-chat-contracts",
+      "priority": 2,
+      "scopes": [
+        "contracts",
+        "docs/architecture.md",
+        "docs/domain",
+        "Makefile",
+        "package.json",
+        "scripts"
+      ],
+      "dependencies": [],
+      "criteria": [
+        "Create contracts/openapi.json, a versioned OpenAPI 3.1 document for agent registration and approval, administrator and moderator sessions, room creation and approval, membership approval and roles, questions and answers, messages, and revocation of a membership and of all chat access.",
+        "Create contracts/asyncapi.json, a versioned AsyncAPI document for the realtime stream of messages to connected agents and the console, including the durable cursor and catch-up after a disconnect, using server-sent events with HTTP posts as the intent assumes.",
+        "Create docs/domain/model.md describing the identity, rooms, deliberation, messaging, moderation and delivery modules, their state transitions, and how each of the nine invariants in docs/architecture.md is upheld.",
+        "Fix the revocation bound in the contracts at the D2 assumption in docs/intent/agent-chat.md: under one second for connected stream clients and the next request for polling clients.",
+        "State in the contracts whether a message accepted before a revocation may land after it, as invariant 4 requires, and define the authorization cache epoch that a revocation advances.",
+        "Describe the D3 to D7 assumptions of docs/intent/agent-chat.md in the contracts and mark each one as an assumption, not as an owner decision.",
+        "Encode the D8 consensus protocol: roles pleb, consul and dispatcher, the 400 ms routing bound, absolute majority floor(k/2)+1, at most three rounds, escalation to an administrator and fallback to all active consuls with a recorded reason.",
+        "Add a contract check to make verify, using Node built-ins only, that fails when either document is not valid JSON, declares the wrong specification version or leaves an operation without a response definition.",
+        "Change package.json only to add scripts, do not change its dependencies, and add no package.",
+        "make verify passes.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-03",
+      "title": "Implement agent registration and approval",
+      "change": "implement-agent-registration-and-approval",
+      "priority": 3,
+      "scopes": [
+        "src",
+        "test",
+        "db",
+        "Dockerfile",
+        ".dockerignore",
+        "compose.yaml",
+        "Makefile",
+        "scripts"
+      ],
+      "dependencies": [
+        "AC-02"
+      ],
+      "criteria": [
+        "Implement the identity module: agent registration, credentials, approval state, people, sessions and roles, replacing the scaffold entry point with the service composition root.",
+        "Issue API keys that are stored only hashed and can be revoked without a restart (D7 assumption).",
+        "Admit an agent only through manual administrator approval, including an agent that already holds a credential; automatic admission does not exist (D3 assumption).",
+        "Audit every approval state transition with actor, reason and time (invariant 3).",
+        "Provide PostgreSQL and HTTP adapters, the store, credential, clock and audit ports, and versioned database migrations under db/.",
+        "Ship the service and PostgreSQL as OCI images pinned by digest with a Docker Compose file, operated through make targets (ADR 0002).",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-04",
+      "title": "Implement rooms and membership approval",
+      "change": "implement-rooms-and-membership-approval",
+      "priority": 4,
+      "scopes": [
+        "src",
+        "test",
+        "db"
+      ],
+      "dependencies": [
+        "AC-03"
+      ],
+      "criteria": [
+        "Implement the rooms module: room lifecycle, administrator approval of room creation and of each membership, and the per-membership roles pleb, consul and dispatcher.",
+        "Deny every room read and write without an approved membership (invariant 1), and audit each approval transition with actor, reason and time.",
+        "Support a single installation only (D6 assumption).",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-05",
+      "title": "Implement question routing through JEV",
+      "change": "implement-question-routing",
+      "priority": 5,
+      "scopes": [
+        "src",
+        "test",
+        "db",
+        "Makefile"
+      ],
+      "dependencies": [
+        "AC-04"
+      ],
+      "criteria": [
+        "Implement ModelPort for one structured call with an OpenAI-compatible adapter and a fake adapter that can return refusals, timeouts, invalid JSON and duplicate deliveries, with no agent framework (ADR 0003).",
+        "Run JEV as an agent with the dispatcher role, provisioned by the installation bootstrap (D9 assumption), with a registration, approval, credential, heartbeat and the normal revocation path; the model identity comes from configuration and is not chosen in code.",
+        "Send JEV the question and the role roster only, never the room history, with no tool access, and accept a selection constrained to a JSON schema at decode time that lists consul identifiers and a short rationale label.",
+        "Reject a selection of JEV itself, of a pleb or of a revoked consul, and never let JEV answer.",
+        "Publish the routing decision within 400 ms of accepting the question, including validation and the synchronous audit write.",
+        "Fall back to all active consuls and record why when JEV misses the budget, returns an invalid selection, is revoked or is cold; a confidence rule is not added.",
+        "Queue concurrent questions per room with a bounded depth, and fall back beyond the bound instead of waiting.",
+        "Record routing decisions in a routing_decisions table, and record JEV availability, latency and routing error rate; state in verification.md that fake-adapter tests do not prove real-model latency or routing quality.",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-06",
+      "title": "Implement consensus deliberation",
+      "change": "implement-consensus-deliberation",
+      "priority": 6,
+      "scopes": [
+        "src",
+        "test",
+        "db"
+      ],
+      "dependencies": [
+        "AC-05"
+      ],
+      "criteria": [
+        "Open a deliberation with its own identity for each pleb question; one selected consul answers directly, and several vote by absolute majority of the selected set, floor(k/2)+1.",
+        "Run at most three rounds, with round two a runoff between the top two and round three final; without a majority publish no answer and escalate to an administrator.",
+        "Let only consuls publish answers and only inside a deliberation, and show plebs the final answer only.",
+        "Keep consensus as an explicit transition table over PostgreSQL tables deliberations and votes, with a unique constraint on (deliberation_id, round, agent_id), and no in-memory statechart (ADR 0003).",
+        "Provide an application operation that removes a revoked agent from the quorum, invalidates the result when the majority no longer holds and starts a new round, covered by tests; the revocation change invokes it.",
+        "Audit every vote with actor, round and time so an administrator can inspect the provenance.",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-07",
+      "title": "Implement the message timeline",
+      "change": "implement-message-timeline",
+      "priority": 7,
+      "scopes": [
+        "src",
+        "test",
+        "db"
+      ],
+      "dependencies": [
+        "AC-04"
+      ],
+      "criteria": [
+        "Implement the messaging module: messages with defined ordering, idempotent posting and paginated history for approved members only.",
+        "Let moderators post and keep administrators acting outside the room (D4 assumption).",
+        "Keep history after access is revoked (D5 assumption) and implement no automatic deletion; the retention window stays an open decision in docs/architecture.md.",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-08",
+      "title": "Implement the realtime stream",
+      "change": "implement-realtime-stream",
+      "priority": 8,
+      "scopes": [
+        "src",
+        "test"
+      ],
+      "dependencies": [
+        "AC-07"
+      ],
+      "criteria": [
+        "Implement the delivery module and stream port with server-sent events to connected agents and the console.",
+        "Persist a durable cursor so a client catches up after a disconnect without losing or duplicating a message.",
+        "Bound per-connection buffers so a slow consumer never blocks a command.",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-09",
+      "title": "Implement instant revocation",
+      "change": "implement-instant-revocation",
+      "priority": 9,
+      "scopes": [
+        "src",
+        "test",
+        "db"
+      ],
+      "dependencies": [
+        "AC-06",
+        "AC-08"
+      ],
+      "criteria": [
+        "Implement the moderation module: an administrator or moderator revokes one room membership or all chat access, the latter as one action, each with an audit record of actor, reason and time.",
+        "Advance a revocation epoch that the service edge checks on every request, and cache an authorization decision only with an explicit epoch (invariants 2 and 5).",
+        "Drop connected streams of the revoked agent within the contract bound, and propagate the revocation to every instance.",
+        "Make a revocation reversible only by a new approval, keeping history (invariant 6 and D5 assumption).",
+        "Invoke the deliberation quorum-removal operation when a consul is revoked during a deliberation.",
+        "Test a revocation racing an in-flight message and prove the behavior the contract states.",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-10",
+      "title": "Build the administrative console",
+      "change": "build-admin-console",
+      "priority": 10,
+      "scopes": [
+        "console",
+        "src",
+        "test",
+        "Dockerfile",
+        "compose.yaml",
+        "Makefile"
+      ],
+      "dependencies": [
+        "AC-03",
+        "AC-04",
+        "AC-09"
+      ],
+      "criteria": [
+        "Use only a console technology that the owner has recorded in docs/architecture.md; if none is recorded, report the outcome as blocked and add no framework.",
+        "Provide console screens for agent and room approvals, rooms, members and their roles, and revocation of a membership and of all chat access.",
+        "Show the console realtime updates through the stream and audited actions with their actor, reason and time.",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-11",
+      "title": "Implement the agent client and example loop",
+      "change": "implement-agent-client",
+      "priority": 11,
+      "scopes": [
+        "src",
+        "test",
+        "examples"
+      ],
+      "dependencies": [
+        "AC-07",
+        "AC-08"
+      ],
+      "criteria": [
+        "Provide a TypeScript agent client for registration, authentication with an issued API key, posting over HTTP and receiving the stream with cursor-based catch-up.",
+        "Provide a runnable example agent loop under examples/ that an approved agent can use against a local installation.",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    },
+    {
+      "id": "AC-12",
+      "title": "Harden and qualify the first delivery",
+      "change": "harden-and-qualify",
+      "priority": 12,
+      "scopes": [
+        "src",
+        "test",
+        "scripts",
+        "Makefile",
+        "README.md",
+        "Dockerfile",
+        "compose.yaml"
+      ],
+      "dependencies": [
+        "AC-09",
+        "AC-10",
+        "AC-11"
+      ],
+      "criteria": [
+        "Test crash points in approval, deliberation and revocation, and revocation races across requests, streams and deliberations.",
+        "Run a smoke end-to-end flow from a fresh installation through make: register and approve an agent, create and join a room, post, receive over the stream and revoke access.",
+        "Document installation, operation and known limits in README.md.",
+        "Do not promote to main, publish or deploy.",
+        "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
+        "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
+        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
+    }
+  ]
+}
