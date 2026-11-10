@@ -21,15 +21,37 @@ runner's frozen project checks, which execute `make verify` in this worktree.
   `package.json` (no dependency change), and its step in `make verify` after
   the comment check.
 
+## Review findings addressed
+
+The runner's automatic review reported two Medium findings, and both are fixed
+in the contracts and the domain model:
+
+- Proposals could not be read by the consuls voting on them. The contracts now
+  add `listProposals` (GET `/v1/deliberations/{deliberationId}/proposals`) for
+  active selected consuls, administrators, and moderators, with 403 for plebs,
+  unselected consuls, and the dispatcher. They add the stream events
+  `deliberation.proposals-requested` and `deliberation.proposal-submitted`, and
+  `deliberation.round-opened` now carries the candidate bodies. The round 1
+  proposal phase is defined in `x-agent-chat-consensus.voting.proposalPhase`: it
+  closes at the configured proposal deadline or once every active selected
+  consul has proposed. The `phase` field and the `no-proposal` escalation
+  reason are new.
+- Invariant 8 was not enforced. `x-agent-chat-consensus.dispatcherAccess` and
+  the stream audiences now state that the dispatcher membership gets 403 from
+  `listMessages`, `postMessage`, `getDeliberation`, and `listProposals`. Of its
+  room's events it receives only `routing.requested`, live and in catch-up. The
+  invariant 8 row of the domain model is updated.
+
+The finding also asked for a spec delta update. The runner denied the write to
+`specs/chat-contracts/spec.md` because the path is outside the task's reserved
+scope, so the bound spec delta is unchanged. It does not yet state the proposal
+phase, proposal visibility, or dispatcher isolation as requirements; this is a
+remaining gate.
+
 ## Checks
 
-Command: `make verify`, run through the runner's frozen checks. Two runs were
-made before the work was committed, when `scripts/check-contracts.ts` was still
-untracked; their comments were then checked by hand against the rule (at most
-two lines of at most 80 characters). A later run on the committed branch
-(head `5453384`, with the script tracked and so covered by the comment check)
-also passed; only this section changed after it. Every run passed with these
-results:
+Command: `make verify`, run through the runner's frozen checks after the fixes
+above; the runner reported `passed`. Step results from that run:
 
 - `npm run verify:comments`: "Every comment is within the comment length
   rule."
@@ -44,8 +66,10 @@ results:
 - `npm run verify:archive`: "Every active OpenSpec change archives into
   strictly valid specs."
 
-The runner reported the outcome of the latest run as `passed` for `make
-verify`; the step outputs above were recorded from the earlier runs.
+Earlier runs, before the review fixes, passed with the same step results.
+Two of them ran before `scripts/check-contracts.ts` was committed, so its
+comments were also checked by hand against the rule (at most two lines of at
+most 80 characters).
 
 The contract check runs built-in fixtures before the real documents and fails
 if any is misjudged: a valid OpenAPI and a valid AsyncAPI document must pass;
@@ -71,6 +95,9 @@ record claims no independent review.
 
 ## Remaining gates
 
+- The spec delta needs requirements for the round 1 proposal phase, proposal
+  visibility, and dispatcher isolation. Someone with authority over the bound
+  spec must add them.
 - The runner's automatic review, integration into `dev`, and the archive step.
 - Owner decisions D2 to D7 and D9 remain open; the contracts use them as
   assumptions.
