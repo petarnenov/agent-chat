@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "AC-02",
+  "taskHash": "710eb70e81c1ff983ba40c45d899fb7d85e17ab6dd7ac24c1bc73ecd008b62a9",
+  "scopes": [
+    "contracts",
+    "docs/architecture.md",
+    "docs/domain",
+    "Makefile",
+    "package.json",
+    "scripts"
+  ],
+  "claimant": "d9e3ee0f-45ef-4f9c-bed2-638741acf64e",
+  "host": "GEO-PetarPetrov",
+  "branch": "outcome/AC-02-5d12e367c6a5",
+  "claimedAt": "2026-11-10T14:11:28.357Z"
+}
