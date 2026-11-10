@@ -32,6 +32,21 @@ an audit port, and a model port for one structured call
 and HTTP are the first ones; the conformance suite of each port ships with the
 port. No agent framework sits between the application and the model.
 
+## Contracts
+
+The contracts come first and every implementation change matches them:
+
+- [contracts/openapi.json](../contracts/openapi.json): the OpenAPI 3.1 HTTP API.
+- [contracts/asyncapi.json](../contracts/asyncapi.json): the AsyncAPI 3.0
+  server-sent event stream.
+- [docs/domain/model.md](domain/model.md): the modules, their state
+  transitions, the revocation semantics, and how each invariant is upheld.
+
+`make verify` checks both documents with `npm run verify:contracts`. The
+contracts use the intent's assumptions for D2 to D7 and D9, and server-sent
+events for transport, each marked as an assumption; none of them closes an open
+decision below.
+
 ## Invariants
 
 1. No agent reads or writes in a room without an approved membership.

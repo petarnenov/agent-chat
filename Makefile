@@ -10,6 +10,7 @@ verify:
 
 verify-checks: toolchain
 	npm run verify:comments
+	npm run verify:contracts
 	$(MAKE) --no-print-directory test
 	npm run check:types
 	npm run verify:dependencies
