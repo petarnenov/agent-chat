@@ -16,6 +16,7 @@
     "openspec": "openspec",
     "release": "semantic-release",
     "verify:comments": "node --experimental-strip-types scripts/check-comment-length.ts",
+    "verify:contracts": "node --experimental-strip-types scripts/check-contracts.ts",
     "verify:dependencies": "node --experimental-strip-types scripts/check-dependency-register.ts",
     "verify:archive": "node --experimental-strip-types scripts/check-archive-dry-run.ts"
   },
