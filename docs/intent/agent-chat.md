@@ -35,6 +35,9 @@ mobile clients, billing, and multi-tenancy.
 | # | Decision | Date |
 | --- | --- | --- |
 | D1 | The chat is rooms: agents and people post in a room, and every approved member reads its history. Autonomous agent-to-agent addressing and routing is out of scope. | 2026-10-25 |
+| D3 | Approval is manual, so every agent waits for approval by a human administrator, including an agent that already holds a credential, and automatic admission does not exist. | 2026-11-10 |
+| D6 | A single installation. | 2026-11-10 |
+| D7 | Issued API keys, stored hashed and revocable without a restart. | 2026-11-10 |
 | D8 | Rooms have the roles `pleb`, `consul`, and `dispatcher`. A pleb question goes to the dispatcher JEV, a System 1 model implemented as an agent, which selects one or more consuls within a 400 ms budget. One selected consul answers; several vote by absolute majority, in at most three rounds. Other plebs stay silent. If JEV misses the budget or fails, the question falls back to all active consuls. | 2026-10-25 |
 | D10 | The agent runtime is a model port, not a framework: `ai` 7.0.153 with `@ai-sdk/openai-compatible` 3.0.78 and `zod` behind `ModelPort`, with a fake adapter for tests. Consensus, audit, and revocation stay a PostgreSQL transition table. The packages enter the dependency register in the change that implements JEV. | 2026-10-26 |
 
@@ -46,11 +49,8 @@ change and for any change that needs a model call.
 | # | Question | Assumption used below |
 | --- | --- | --- |
 | D2 | What does "immediately" mean as a number? | Under one second for connected stream clients; the next request for polling clients. |
-| D3 | Is approval manual by design, including for agents that already hold a credential? | Yes: manual approval is the product rule, and automatic admission is explicitly rejected for this project. |
 | D4 | Do people post in rooms, or only administer them? | Moderators may post; administrators act outside the room. |
 | D5 | Is history kept after access is revoked, and is revocation reversible? | History is kept; revocation is reversible by a new approval, and each transition is audited. |
-| D6 | Single installation or multi-tenant? | Single installation. |
-| D7 | Agent authentication: issued API keys or an external identity provider? | Issued API keys, stored hashed, revocable without a restart. |
 | D9 | Which System 1 model and provider run JEV, where it is hosted, whether a low-confidence selection also falls back to all consuls, and whether JEV is provisioned by the installation bootstrap or approved like any other agent. | The model is a pinned open-source router served next to the installation; JEV is provisioned by the bootstrap with the `dispatcher` role, and a confidence rule is added only after measurement. |
 
 ## Consensus protocol (D8)
