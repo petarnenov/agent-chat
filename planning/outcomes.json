@@ -311,6 +311,26 @@
         "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
         "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
       ]
+    },
+    {
+      "id": "AC-13",
+      "title": "Record owner decisions D3, D6 and D7",
+      "change": "record-owner-decisions-d3-d6-d7",
+      "priority": 13,
+      "scopes": [
+        "docs/intent"
+      ],
+      "dependencies": [],
+      "criteria": [
+        "In docs/intent/agent-chat.md, move D3, D6 and D7 from the open decisions table to the Owner decisions table with the date 2026-11-10.",
+        "Record D3 as: approval is manual, so every agent waits for approval by a human administrator, including an agent that already holds a credential, and automatic admission does not exist.",
+        "Record D6 as: a single installation. Record D7 as: issued API keys, stored hashed and revocable without a restart.",
+        "Keep D2, D4, D5 and D9 in the open decisions table with their text unchanged.",
+        "Change no other file under docs/intent, and no contract, code, queue or governance document.",
+        "make verify passes.",
+        "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
+        "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
+      ]
     }
   ]
 }
