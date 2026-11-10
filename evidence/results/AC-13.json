@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "id": "AC-13",
+  "taskHash": "51091b9f96ae963d7f28f3f5eff555ec1445f030a9034eb788a8c345c09edfe4",
+  "authority": "owner-2026-11-10-agent-chat-ac-13-codex",
+  "specification": {
+    "openspec/changes/record-owner-decisions-d3-d6-d7/design.md": "e1f626649bca63a9d9ea4db2d8d243a740e91c6d4505e502b089005ef5e7edf3",
+    "openspec/changes/record-owner-decisions-d3-d6-d7/proposal.md": "ae77161acb0e27d6fb509cb25257bad2df0b41ba218ddda4e5d838126e2e1c50",
+    "openspec/changes/record-owner-decisions-d3-d6-d7/specs/owner-decisions/spec.md": "564fde67b229e8ee677a77a9bba4d044bee488248afa020b05875d2c11e7309e"
+  },
+  "review": {
+    "reviewer": "codex:01a1c697-fde3-7e81-af11-9df0a461a175",
+    "outcome": "accepted",
+    "accepted": true
+  },
+  "checks": [
+    {
+      "command": "make",
+      "args": [
+        "verify"
+      ],
+      "outcome": "passed"
+    }
+  ],
+  "manifest": [
+    {
+      "path": "docs/intent/agent-chat.md",
+      "hash": "3e82c1083146f81c6fe72e4cd3f6c77d6e5c9c181941fa21948df16c1a25730c"
+    },
+    {
+      "path": "openspec/changes/record-owner-decisions-d3-d6-d7/design.md",
+      "hash": "e1f626649bca63a9d9ea4db2d8d243a740e91c6d4505e502b089005ef5e7edf3"
+    },
+    {
+      "path": "openspec/changes/record-owner-decisions-d3-d6-d7/proposal.md",
+      "hash": "ae77161acb0e27d6fb509cb25257bad2df0b41ba218ddda4e5d838126e2e1c50"
+    },
+    {
+      "path": "openspec/changes/record-owner-decisions-d3-d6-d7/specs/owner-decisions/spec.md",
+      "hash": "564fde67b229e8ee677a77a9bba4d044bee488248afa020b05875d2c11e7309e"
+    },
+    {
+      "path": "openspec/changes/record-owner-decisions-d3-d6-d7/tasks.md",
+      "hash": "c5cbca345c39739048eaf4df74c6c43c30cd6b0bdb4d5667828f9d005b82f947"
+    },
+    {
+      "path": "openspec/changes/record-owner-decisions-d3-d6-d7/verification.md",
+      "hash": "a31289242a52f13816ec03f78b6a38f04c35667e0f514749b671030ad4f908ac"
+    }
+  ],
+  "head": "ebf5a4e1318d3513ba770bbd679f9b0d6df73eed",
+  "base": "5b0b516398b00c06ba20405b19e62ef389a0ad05"
+}
