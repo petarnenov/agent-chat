@@ -6,4 +6,4 @@
 ## 2. Verification and review
 
 - [x] 2.1 Run `make verify`.
-- [ ] 2.2 Obtain independent review or a documented owner exception, and record the result in `verification.md`.
+- [x] 2.2 Obtain independent review and record the result in `verification.md`.
