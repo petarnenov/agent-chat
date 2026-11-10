@@ -26,8 +26,17 @@
     "@semantic-release/github": "12.0.10",
     "@semantic-release/release-notes-generator": "14.1.1",
     "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
     "conventional-changelog-conventionalcommits": "9.3.1",
+    "openapi-typescript": "7.13.0",
     "semantic-release": "25.0.9",
     "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.6",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "hono": "4.13.17",
+    "pg": "8.23.1"
   }
 }

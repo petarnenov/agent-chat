@@ -18,10 +18,17 @@ change that touches `package.json`.
 | Package | Version | Scope | License | Reviewed |
 | --- | --- | --- | --- | --- |
 | @fission-ai/openspec | 1.14.3 | dev | MIT | 2026-10-25 |
+| @hono/node-server | 2.1.6 | prod | MIT | 2026-11-10 |
 | @semantic-release/commit-analyzer | 13.0.1 | dev | MIT | 2026-10-25 |
 | @semantic-release/github | 12.0.10 | dev | MIT | 2026-10-25 |
 | @semantic-release/release-notes-generator | 14.1.1 | dev | MIT | 2026-10-25 |
 | @types/node | 24.19.2 | dev | MIT | 2026-10-25 |
+| @types/pg | 8.23.1 | dev | MIT | 2026-11-10 |
+| ajv | 8.20.0 | prod | MIT | 2026-11-10 |
+| ajv-formats | 3.0.1 | prod | MIT | 2026-11-10 |
 | conventional-changelog-conventionalcommits | 9.3.1 | dev | ISC | 2026-10-25 |
+| hono | 4.13.17 | prod | MIT | 2026-11-10 |
+| openapi-typescript | 7.13.0 | dev | MIT | 2026-11-10 |
+| pg | 8.23.1 | prod | MIT | 2026-11-10 |
 | semantic-release | 25.0.9 | dev | MIT | 2026-10-25 |
 | typescript | 5.9.3 | dev | Apache-2.0 | 2026-10-25 |
