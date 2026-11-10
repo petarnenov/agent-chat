@@ -20,13 +20,15 @@
   "x-agent-chat-delivery": {
     "cursor": "An installation-wide, strictly increasing event position, sent as the SSE id field. Events of one room follow the room sequence, and a cursor stays valid while the history is kept (D5 assumption).",
     "durableCursor": "The client stores the last processed cursor with the cursor post (PUT /v1/stream/cursor); the service keeps it per agent or person, so a reconnect without Last-Event-ID resumes after it.",
-    "catchUp": "On connect the service sends, in cursor order, every event after the resume cursor that the caller is authorized to see at its current epoch, then live events without a gap or a duplicate. A cursor ahead of the newest event is rejected with 409.",
+    "catchUp": "On connect the service sends, in cursor order, every event after the resume cursor that the caller is authorized to see at its current epoch, then live events without a gap or a duplicate. Catch-up applies the same audience filters as live delivery. A cursor ahead of the newest event is rejected with 409.",
     "backpressure": "Each connection has a bounded buffer. When it is full the service sends stream.overflow and closes the connection; commands never wait on a slow consumer, and the client reconnects with its cursor.",
     "heartbeatSeconds": 15,
     "audiences": {
-      "agent": "Events of rooms where the agent holds an approved membership, filtered by role: plebs never receive proposals, votes or round events.",
-      "dispatcher": "routing.requested for questions of its rooms.",
-      "console": "Administrator and moderator sessions receive room events, approval requests, revocations and escalations."
+      "pleb": "For a room where the agent holds an approved pleb membership: message.posted and answer.published. Plebs never receive proposals, votes or round events.",
+      "consul": "For a room where the agent holds an approved consul membership: message.posted and answer.published, and, only for deliberations that selected it while it stays an active selected consul, deliberation.proposals-requested, deliberation.proposal-submitted and deliberation.round-opened.",
+      "dispatcher": "For a room where the agent holds the dispatcher membership: routing.requested only. It never receives message.posted, answer.published, deliberation.proposals-requested, deliberation.proposal-submitted or deliberation.round-opened of that room (invariant 8).",
+      "own": "Every agent receives heartbeat, stream.overflow and the membership.revoked and access.revoked events about itself.",
+      "console": "Administrator and moderator sessions receive room events, proposals, round events, approval requests, revocations and escalations."
     }
   },
   "x-agent-chat-revocation": {
@@ -98,7 +100,7 @@
       "id": "D9",
       "status": "assumption",
       "ownerDecision": false,
-      "assumption": "JEV is provisioned by the installation bootstrap with the dispatcher role, and a confidence rule is added only after measurement."
+      "assumption": "JEV is provisioned by the installation bootstrap with the dispatcher role, and a confidence rule is added only after measurement. The dispatcher membership receives only routing.requested of its room."
     }
   ],
   "x-agent-chat-consensus": {
@@ -108,6 +110,9 @@
     "majority": "floor(k/2)+1 of the active selected consuls",
     "maxRounds": 3,
     "fallback": "All active consuls, with the reason recorded in the audit.",
+    "proposalPhase": "Round 1 opens with a proposal phase announced by deliberation.proposals-requested. It closes at the configured proposal deadline or as soon as every active selected consul has proposed; then the voting phase of round 1 opens with deliberation.round-opened carrying every candidate with its body. Without an accepted proposal the deliberation escalates with reason no-proposal.",
+    "proposalVisibility": "Proposals reach only the active selected consuls of the deliberation and the console; never plebs, consuls the deliberation did not select or the dispatcher.",
+    "dispatcherAccess": "Of its room's events the dispatcher receives only routing.requested, live and in catch-up (invariant 8).",
     "details": "x-agent-chat-consensus in contracts/openapi.json."
   },
   "servers": {
@@ -131,6 +136,8 @@
         "messagePosted": { "$ref": "#/components/messages/messagePosted" },
         "answerPublished": { "$ref": "#/components/messages/answerPublished" },
         "routingRequested": { "$ref": "#/components/messages/routingRequested" },
+        "proposalsRequested": { "$ref": "#/components/messages/proposalsRequested" },
+        "proposalSubmitted": { "$ref": "#/components/messages/proposalSubmitted" },
         "roundOpened": { "$ref": "#/components/messages/roundOpened" },
         "deliberationEscalated": { "$ref": "#/components/messages/deliberationEscalated" },
         "approvalRequested": { "$ref": "#/components/messages/approvalRequested" },
@@ -155,25 +162,37 @@
     "sendMessagePosted": {
       "action": "send",
       "channel": { "$ref": "#/channels/stream" },
-      "summary": "Deliver an accepted room message to approved members, moderators and administrators.",
+      "summary": "Deliver an accepted room message to approved pleb and consul members, moderators and administrators; never to the dispatcher of the room.",
       "messages": [{ "$ref": "#/channels/stream/messages/messagePosted" }]
     },
     "sendAnswerPublished": {
       "action": "send",
       "channel": { "$ref": "#/channels/stream" },
-      "summary": "Deliver the final answer of a deliberation to every approved member; plebs see only this.",
+      "summary": "Deliver the final answer of a deliberation to every approved pleb and consul member and the console; plebs see only this, and the dispatcher of the room never receives it.",
       "messages": [{ "$ref": "#/channels/stream/messages/answerPublished" }]
     },
     "sendRoutingRequested": {
       "action": "send",
       "channel": { "$ref": "#/channels/stream" },
-      "summary": "Ask the dispatcher JEV for a routing decision; sent only to the dispatcher of the room, which answers with submitRoutingDecision over HTTP.",
+      "summary": "Ask the dispatcher JEV for a routing decision; sent only to the dispatcher of the room, which answers with submitRoutingDecision over HTTP. It is the only room event the dispatcher receives.",
       "messages": [{ "$ref": "#/channels/stream/messages/routingRequested" }]
+    },
+    "sendProposalsRequested": {
+      "action": "send",
+      "channel": { "$ref": "#/channels/stream" },
+      "summary": "Open the round 1 proposal phase: tell each active selected consul and the console the question, the quorum and the proposal deadline.",
+      "messages": [{ "$ref": "#/channels/stream/messages/proposalsRequested" }]
+    },
+    "sendProposalSubmitted": {
+      "action": "send",
+      "channel": { "$ref": "#/channels/stream" },
+      "summary": "Deliver an accepted proposal with its body to the active selected consuls of the deliberation and the console; never to plebs, unselected consuls or the dispatcher.",
+      "messages": [{ "$ref": "#/channels/stream/messages/proposalSubmitted" }]
     },
     "sendRoundOpened": {
       "action": "send",
       "channel": { "$ref": "#/channels/stream" },
-      "summary": "Tell the active selected consuls and the console that a voting round is open.",
+      "summary": "Tell the active selected consuls and the console that a voting round is open, with the candidate proposals and their bodies.",
       "messages": [{ "$ref": "#/channels/stream/messages/roundOpened" }]
     },
     "sendDeliberationEscalated": {
@@ -241,6 +260,7 @@
       "messagePosted": {
         "name": "message.posted",
         "title": "Message posted",
+        "summary": "Never sent to the dispatcher of the room (invariant 8).",
         "payload": {
           "allOf": [
             { "$ref": "#/components/schemas/Envelope" },
@@ -251,6 +271,7 @@
       "answerPublished": {
         "name": "answer.published",
         "title": "Answer published",
+        "summary": "Never sent to the dispatcher of the room (invariant 8).",
         "payload": {
           "allOf": [
             { "$ref": "#/components/schemas/Envelope" },
@@ -310,9 +331,10 @@
           ]
         }
       },
-      "roundOpened": {
-        "name": "deliberation.round-opened",
-        "title": "Round opened",
+      "proposalsRequested": {
+        "name": "deliberation.proposals-requested",
+        "title": "Proposals requested",
+        "summary": "Opens the round 1 proposal phase; sent only to the active selected consuls and the console.",
         "payload": {
           "allOf": [
             { "$ref": "#/components/schemas/Envelope" },
@@ -322,14 +344,54 @@
               "properties": {
                 "data": {
                   "type": "object",
-                  "required": ["deliberationId", "round", "quorum", "majority", "routingSource", "deadline"],
+                  "required": ["deliberationId", "roomId", "question", "quorum", "routingSource", "proposalDeadline"],
+                  "properties": {
+                    "deliberationId": { "$ref": "#/components/schemas/Id" },
+                    "roomId": { "$ref": "#/components/schemas/Id" },
+                    "question": { "type": "string" },
+                    "quorum": { "type": "array", "items": { "$ref": "#/components/schemas/Id" }, "description": "The active selected consuls; k is its length. With k of 1 the proposal becomes the answer." },
+                    "routingSource": { "type": "string", "enum": ["dispatcher", "fallback"] },
+                    "proposalDeadline": { "type": "string", "format": "date-time", "description": "From the configured proposal deadline; the phase closes earlier when every active selected consul has proposed." }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "proposalSubmitted": {
+        "name": "deliberation.proposal-submitted",
+        "title": "Proposal submitted",
+        "summary": "An accepted proposal with its body; sent only to the active selected consuls of the deliberation and the console.",
+        "payload": {
+          "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            { "type": "object", "required": ["data"], "properties": { "data": { "$ref": "#/components/schemas/Proposal" } } }
+          ]
+        }
+      },
+      "roundOpened": {
+        "name": "deliberation.round-opened",
+        "title": "Round opened",
+        "summary": "Opens a voting phase; for round 1 it marks the end of the proposal phase.",
+        "payload": {
+          "allOf": [
+            { "$ref": "#/components/schemas/Envelope" },
+            {
+              "type": "object",
+              "required": ["data"],
+              "properties": {
+                "data": {
+                  "type": "object",
+                  "required": ["deliberationId", "round", "quorum", "majority", "routingSource", "candidates", "proposals", "deadline"],
                   "properties": {
                     "deliberationId": { "$ref": "#/components/schemas/Id" },
                     "question": { "type": "string" },
                     "round": { "type": "integer", "minimum": 1, "maximum": 3 },
                     "quorum": { "type": "array", "items": { "$ref": "#/components/schemas/Id" }, "description": "The active selected consuls; k is its length." },
                     "majority": { "type": "integer", "minimum": 1, "description": "floor(k/2)+1." },
-                    "candidates": { "type": "array", "items": { "$ref": "#/components/schemas/Id" }, "description": "Proposal identifiers; the top two by valid votes in rounds 2 and 3." },
+                    "candidates": { "type": "array", "items": { "$ref": "#/components/schemas/Id" }, "description": "Proposal identifiers: every proposal that is not withdrawn in round 1, the top two by valid votes in rounds 2 and 3." },
+                    "proposals": { "type": "array", "items": { "$ref": "#/components/schemas/Proposal" }, "description": "The candidate proposals with their bodies, in the order of candidates." },
                     "routingSource": { "type": "string", "enum": ["dispatcher", "fallback"] },
                     "previousRoundInvalidated": { "type": "boolean", "description": "True when a revocation invalidated the previous round, which still counts as a round." },
                     "deadline": { "type": "string", "format": "date-time", "description": "From the configured round deadline." }
@@ -355,7 +417,7 @@
                   "required": ["deliberationId", "reason"],
                   "properties": {
                     "deliberationId": { "$ref": "#/components/schemas/Id" },
-                    "reason": { "type": "string", "enum": ["no-majority", "no-active-consul"] }
+                    "reason": { "type": "string", "enum": ["no-majority", "no-active-consul", "no-proposal"] }
                   }
                 }
               }
@@ -488,6 +550,18 @@
           "body": { "type": "string" },
           "deliberationId": { "type": ["string", "null"], "format": "uuid" },
           "acceptedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Proposal": {
+        "type": "object",
+        "required": ["id", "deliberationId", "consulId", "body", "acceptedAt", "withdrawn"],
+        "properties": {
+          "id": { "$ref": "#/components/schemas/Id" },
+          "deliberationId": { "$ref": "#/components/schemas/Id" },
+          "consulId": { "$ref": "#/components/schemas/Id" },
+          "body": { "type": "string" },
+          "acceptedAt": { "type": "string", "format": "date-time" },
+          "withdrawn": { "type": "boolean", "description": "True when its consul was revoked before the voting phase opened; a withdrawn proposal is not a candidate." }
         }
       },
       "Revocation": {
