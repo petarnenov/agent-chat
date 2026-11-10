@@ -23,9 +23,11 @@ runner's frozen project checks, which execute `make verify` in this worktree.
 
 ## Checks
 
-Command: `make verify`, run once through the runner's frozen checks after the
-last change to a contract, script, or document other than this file and
-`tasks.md`. Result: passed. Its output reported:
+Command: `make verify`, run twice through the runner's frozen checks: once
+after the contracts, script, and documents were final, and once more after
+`tasks.md` and the first version of this file were written. Only the wording
+of this section changed after the second run. Both runs passed with the same
+results:
 
 - `npm run verify:comments`: "Every comment is within the comment length
   rule."
@@ -40,12 +42,16 @@ last change to a contract, script, or document other than this file and
 - `npm run verify:archive`: "Every active OpenSpec change archives into
   strictly valid specs."
 
+The comment check covers tracked files only, and the new script was untracked
+during these runs; its comments were checked by hand against the rule (at most
+two lines of at most 80 characters).
+
 The contract check runs built-in fixtures before the real documents and fails
 if any is misjudged: a valid OpenAPI and a valid AsyncAPI document must pass;
 invalid JSON for each document, OpenAPI 3.0, AsyncAPI 2.6, an OpenAPI
 operation without or with empty `responses`, an AsyncAPI operation without
 messages, an AsyncAPI `receive` operation without a `reply`, and an unresolved
-`$ref` must fail. The passing run above shows that every fixture was judged as
+`$ref` must fail. The passing runs show that every fixture was judged as
 expected. The fixtures prove the check's detection; the check has no unit test
 under `test/`, which is outside this task's scope, as the design records.
 
