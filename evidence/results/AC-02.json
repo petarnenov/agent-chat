@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "id": "AC-02",
+  "taskHash": "710eb70e81c1ff983ba40c45d899fb7d85e17ab6dd7ac24c1bc73ecd008b62a9",
+  "authority": "owner-2026-11-10-agent-chat-ac-02",
+  "specification": {
+    "openspec/changes/define-chat-contracts/design.md": "f7d0f7b2ccc5c5c2cdf470ce0fccbb63f275a6f9b067fbdd8d9cbdbf6c4aef82",
+    "openspec/changes/define-chat-contracts/proposal.md": "39ad4300b8c21694def259e619952251659e463519935798575157436c362b64",
+    "openspec/changes/define-chat-contracts/specs/chat-contracts/spec.md": "9d20b0b9bf00c742019d5a2fafb8696bf292d62754e0f89e4fbf2dc1d0eafef6"
+  },
+  "review": {
+    "reviewer": "claude:59d59756-95cb-41db-89c7-ee366fb44c15",
+    "outcome": "accepted",
+    "accepted": true
+  },
+  "checks": [
+    {
+      "command": "make",
+      "args": [
+        "verify"
+      ],
+      "outcome": "passed"
+    }
+  ],
+  "manifest": [
+    {
+      "path": "Makefile",
+      "hash": "991a0c205ffb5d41358672d5182c26eb1bfb30a1a97964c28886807b4bf70796"
+    },
+    {
+      "path": "contracts/asyncapi.json",
+      "hash": "730e4b3c3bb3dd275277c58306521b326c04ff86a2180861a61be6392a4a0bca"
+    },
+    {
+      "path": "contracts/openapi.json",
+      "hash": "a078dc0de479d8536c9b9de7a393d944e508399465a2c8a8f65bcf3c89828745"
+    },
+    {
+      "path": "docs/architecture.md",
+      "hash": "65a10146df352d4c742faf32d4a50717bff9c845d104e3da764cccff86a74dbe"
+    },
+    {
+      "path": "docs/domain/model.md",
+      "hash": "cd9766fcda8b2fda76884ff8a037e1fdcdab7e4c8a9e7cd13875f95c39a72b3f"
+    },
+    {
+      "path": "openspec/changes/define-chat-contracts/.openspec.yaml",
+      "hash": "519b5d2f2c95a5824a38a573c58ef1067b39bf77f183f2c01b55804de4c18bde"
+    },
+    {
+      "path": "openspec/changes/define-chat-contracts/design.md",
+      "hash": "f7d0f7b2ccc5c5c2cdf470ce0fccbb63f275a6f9b067fbdd8d9cbdbf6c4aef82"
+    },
+    {
+      "path": "openspec/changes/define-chat-contracts/proposal.md",
+      "hash": "39ad4300b8c21694def259e619952251659e463519935798575157436c362b64"
+    },
+    {
+      "path": "openspec/changes/define-chat-contracts/specs/chat-contracts/spec.md",
+      "hash": "9d20b0b9bf00c742019d5a2fafb8696bf292d62754e0f89e4fbf2dc1d0eafef6"
+    },
+    {
+      "path": "openspec/changes/define-chat-contracts/tasks.md",
+      "hash": "0b9523453a679c6bf6ee251a19effcc21cd6360b814b4bf26ea22fb3e926df74"
+    },
+    {
+      "path": "openspec/changes/define-chat-contracts/verification.md",
+      "hash": "9f3a499881235c81c4acbf31776016245c4b37594f2bf7124138d05d08e1eb0e"
+    },
+    {
+      "path": "package.json",
+      "hash": "f334dfdf692f1aef873bd66d422a703ecf4d5c0fbc1bcad759de215693e01269"
+    },
+    {
+      "path": "scripts/check-contracts.ts",
+      "hash": "90ef20542d80ee8dc56c8b962a93969e18a1f575adae5d647e4bb620d9dc88f4"
+    }
+  ],
+  "head": "9bd310799386bbc3db85dd3a1c87aefde4418449",
+  "base": "7cb313ba1ace96203dffb5d888f0a58b16791710"
+}
