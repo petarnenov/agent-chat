@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "AC-13",
+  "taskHash": "51091b9f96ae963d7f28f3f5eff555ec1445f030a9034eb788a8c345c09edfe4",
+  "scopes": [
+    "docs/intent"
+  ],
+  "claimant": "0db281d9-4536-481d-adca-81deb85faf89",
+  "host": "GEO-PetarPetrov",
+  "branch": "outcome/AC-13-3a695f6f538a",
+  "claimedAt": "2026-11-10T17:39:21.223Z"
+}
