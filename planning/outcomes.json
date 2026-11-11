@@ -50,8 +50,8 @@
       ],
       "criteria": [
         "Implement the identity module: agent registration, credentials, approval state, people, sessions and roles, replacing the scaffold entry point with the service composition root.",
-        "Issue API keys that are stored only hashed and can be revoked without a restart (D7 assumption).",
-        "Admit an agent only through manual administrator approval, including an agent that already holds a credential; automatic admission does not exist (D3 assumption).",
+        "Issue API keys that are stored only hashed and can be revoked without a restart (D7).",
+        "Admit an agent only through manual administrator approval, including an agent that already holds a credential; automatic admission does not exist (D3).",
         "Audit every approval state transition with actor, reason and time (invariant 3).",
         "Provide PostgreSQL and HTTP adapters, the store, credential, clock and audit ports, and versioned database migrations under db/.",
         "Ship the service and PostgreSQL as OCI images pinned by digest with a Docker Compose file, operated through make targets (ADR 0002).",
@@ -79,7 +79,7 @@
       "criteria": [
         "Implement the rooms module: room lifecycle, administrator approval of room creation and of each membership, and the per-membership roles pleb, consul and dispatcher.",
         "Deny every room read and write without an approved membership (invariant 1), and audit each approval transition with actor, reason and time.",
-        "Support a single installation only (D6 assumption).",
+        "Support a single installation only (D6).",
         "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
         "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
         "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
@@ -97,23 +97,27 @@
         "src",
         "test",
         "db",
-        "Makefile"
+        "Makefile",
+        "package.json",
+        "package-lock.json",
+        "docs/dependencies.md"
       ],
       "dependencies": [
         "AC-04"
       ],
       "criteria": [
-        "Implement ModelPort for one structured call with an OpenAI-compatible adapter and a fake adapter that can return refusals, timeouts, invalid JSON and duplicate deliveries, with no agent framework (ADR 0003).",
+        "Implement ModelPort for one typed call with a dispatcher adapter that uses @typesafe-ai/sdk and zod to call Jev, the System One model of the TypeSafe API, and a fake adapter that can return refusals, timeouts, invalid choices and duplicate deliveries, with no agent framework (D9 and D10).",
         "Run JEV as an agent with the dispatcher role, provisioned by the installation bootstrap (D9 assumption), with a registration, approval, credential, heartbeat and the normal revocation path; the model identity comes from configuration and is not chosen in code.",
-        "Send JEV the question and the role roster only, never the room history, with no tool access, and accept a selection constrained to a JSON schema at decode time that lists consul identifiers and a short rationale label.",
-        "Reject a selection of JEV itself, of a pleb or of a revoked consul, and never let JEV answer.",
-        "Publish the routing decision within 400 ms of accepting the question, including validation and the synchronous audit write.",
-        "Fall back to all active consuls and record why when JEV misses the budget, returns an invalid selection, is revoked or is cold; a confidence rule is not added.",
-        "Queue concurrent questions per room with a bounded depth, and fall back beyond the bound instead of waiting.",
-        "Record routing decisions in a routing_decisions table, and record JEV availability, latency and routing error rate; state in verification.md that fake-adapter tests do not prove real-model latency or routing quality.",
+        "Send JEV the question and the role roster only, through routing.requested, never the room history, with no tool access, and take the routing decision as a typed choice of the TypeSafe API, not validated after free-form generation.",
+        "Accept a routing decision that is exactly one of selected, with exactly one active consul identifier of that room and a short rationale label, or not-for-consul, for a question that is not about software and its implementation, which selects no consul.",
+        "Reject an invalid decision, including a selection of JEV itself, of a pleb or of a revoked consul, with 422 and let JEV resubmit within the limit; reject a decision after the 3000 ms limit with 409; never let JEV answer.",
+        "Measure the 400 ms target and the 3000 ms limit from sending routing.requested, when the question reaches the head of the queue, to committing the routing decision, including validation and the synchronous audit write; a decision after 400 ms but within 3000 ms stands and the audit records the overrun.",
+        "Route questions one at a time in order of acceptance across the installation, and send JEV routing.requested for the next question only after the previous one has a routing decision or is skipped.",
+        "Skip a question with skipReason timeout when no valid decision commits within 3000 ms, and at once with skipReason dispatcher-revoked when JEV is revoked while routing; a cold or unavailable JEV is a missing decision, nothing falls back to other consuls, and no confidence rule is added (D9 assumption).",
+        "Record routing decisions in a routing_decisions table, audit every routing decision, including rejected attempts and overruns, and every skip with actor and time, and record JEV availability, latency and routing error rate; state in verification.md that fake-adapter tests do not prove real-model latency or routing quality.",
         "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
         "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
-        "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
+        "Add @typesafe-ai/sdk and zod to package.json at exact versions, lock them in package-lock.json and register them in docs/dependencies.md (D10); add no other package, and if either cannot be added, report the outcome as blocked.",
         "make verify passes, tests cover happy and failure paths with at least 75% of lines, branches and functions, and new tests live directly under test/ as *.test.ts so the test script runs them.",
         "Complete this OpenSpec change with proposal.md, design.md, tasks.md, verification.md and a spec delta; a delta that creates a capability starts with a Purpose of at least 50 characters.",
         "verification.md records the exact commands and results and claims no independent review, CI run or deployment validation that did not occur."
@@ -121,7 +125,7 @@
     },
     {
       "id": "AC-06",
-      "title": "Implement consensus deliberation",
+      "title": "Implement the deliberation and the consul answer",
       "change": "implement-consensus-deliberation",
       "priority": 6,
       "scopes": [
@@ -130,15 +134,19 @@
         "db"
       ],
       "dependencies": [
-        "AC-05"
+        "AC-05",
+        "AC-07"
       ],
       "criteria": [
-        "Open a deliberation with its own identity for each pleb question; one selected consul answers directly, and several vote by absolute majority of the selected set, floor(k/2)+1.",
-        "Run at most three rounds, with round two a runoff between the top two and round three final; without a majority publish no answer and escalate to an administrator.",
-        "Let only consuls publish answers and only inside a deliberation, and show plebs the final answer only.",
-        "Keep consensus as an explicit transition table over PostgreSQL tables deliberations and votes, with a unique constraint on (deliberation_id, round, agent_id), and no in-memory statechart (ADR 0003).",
-        "Provide an application operation that removes a revoked agent from the quorum, invalidates the result when the majority no longer holds and starts a new round, covered by tests; the revocation change invokes it.",
-        "Audit every vote with actor, round and time so an administrator can inspect the provenance.",
+        "Open a deliberation with its own identity for each pleb question in state routing, and move it to answering when JEV selects a consul, to declined on a not-for-consul decision, to skipped with a skipReason, and to answered when the selected consul answers.",
+        "On a not-for-consul decision, post in the room a message of kind dispatcher-reply, authored by JEV, whose body is exactly \"This is not a question for a consul.\"; this fixed reply is the only message JEV ever posts.",
+        "Send deliberation.consul-selected with the deliberation id and the question to the selected consul only, and send deliberation.skipped with the deliberation id and the skipReason to the asking pleb and the console.",
+        "Implement submitAnswer (POST /v1/deliberations/{deliberationId}/answer) so that only the selected consul answers, once, and the answer is published as answer.published; reject any other caller with 403.",
+        "Set no answer deadline: a deliberation stays answering until the selected consul answers or is revoked (D11).",
+        "Let no pleb, no person and not JEV publish an answer, and show plebs the final answer, the fixed reply or that the question was skipped.",
+        "Keep the deliberation as an explicit transition table over PostgreSQL with no votes table and no in-memory statechart, and implement no proposals, rounds, majority, quorum, escalation or fallback to all active consuls (D8 and D10).",
+        "Provide an application operation that skips an answering deliberation with skipReason consul-revoked when its selected consul is revoked before it answers (D11 assumption), covered by tests; the revocation change invokes it.",
+        "Audit every answer and every skip with actor and time so an administrator can inspect the provenance.",
         "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
         "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
         "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
@@ -162,8 +170,8 @@
       ],
       "criteria": [
         "Implement the messaging module: messages with defined ordering, idempotent posting and paginated history for approved members only.",
-        "Let moderators post and keep administrators acting outside the room (D4 assumption).",
-        "Keep history after access is revoked (D5 assumption) and implement no automatic deletion; the retention window stays an open decision in docs/architecture.md.",
+        "Accept postMessage and askQuestion from agents only, with the pleb or consul role, never from a person or the dispatcher; message authors are agents or system, never a moderator or administrator (D4).",
+        "Keep history after access is revoked (D5) and implement no automatic deletion; the retention window stays an open decision in docs/architecture.md.",
         "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
         "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
         "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
@@ -213,10 +221,11 @@
       "criteria": [
         "Implement the moderation module: an administrator or moderator revokes one room membership or all chat access, the latter as one action, each with an audit record of actor, reason and time.",
         "Advance a revocation epoch that the service edge checks on every request, and cache an authorization decision only with an explicit epoch (invariants 2 and 5).",
-        "Drop connected streams of the revoked agent within the contract bound, and propagate the revocation to every instance.",
-        "Make a revocation reversible only by a new approval, keeping history (invariant 6 and D5 assumption).",
-        "Invoke the deliberation quorum-removal operation when a consul is revoked during a deliberation.",
-        "Test a revocation racing an in-flight message and prove the behavior the contract states.",
+        "Reject with 403 a request whose authorization check begins after the revocation commits (D2).",
+        "Re-check the subject's authorization epoch before writing each stream event, so no event is written to the revoked subject after the revocation commits; a room revocation stops that room's stream, an all-chat revocation closes the connection, and the revocation propagates to every instance (D2).",
+        "Make a revocation reversible only by a new approval, keeping history and auditing every transition (invariant 6 and D5).",
+        "Invoke the deliberation skip operation when the selected consul of an answering deliberation is revoked, so the question is skipped with skipReason consul-revoked (D11 assumption), and skip the question being routed at once with skipReason dispatcher-revoked when JEV is revoked.",
+        "Test a revocation racing an in-flight message and prove that a message whose insert committed before the revocation keeps its sequence and stays in history.",
         "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
         "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
         "Use only packages already locked in package-lock.json and do not change dependencies in package.json, package-lock.json or docs/dependencies.md. If a required package is not locked, report the outcome as blocked.",
@@ -245,7 +254,7 @@
       ],
       "criteria": [
         "Use only a console technology that the owner has recorded in docs/architecture.md; if none is recorded, report the outcome as blocked and add no framework.",
-        "Provide console screens for agent and room approvals, rooms, members and their roles, and revocation of a membership and of all chat access.",
+        "Provide console screens for agent and room approvals, rooms, members and their roles, and revocation of a membership and of all chat access; the console lets people read rooms but never post in them (D4).",
         "Show the console realtime updates through the stream and audited actions with their actor, reason and time.",
         "Domain and application code depend only on ports; adapters are wired in the composition root, and every adapter passes the shared conformance suite of its port (ADR 0002).",
         "HTTP and stream behavior matches contracts/openapi.json and contracts/asyncapi.json; a required contract change is reported as blocked instead of being made here.",
@@ -300,7 +309,7 @@
         "AC-11"
       ],
       "criteria": [
-        "Test crash points in approval, deliberation and revocation, and revocation races across requests, streams and deliberations.",
+        "Test crash points in approval, deliberation and revocation, and revocation races across requests, streams and deliberations, including a selected consul revoked before it answers, which skips the question with skipReason consul-revoked (D11 assumption).",
         "Run a smoke end-to-end flow from a fresh installation through make: register and approve an agent, create and join a room, post, receive over the stream and revoke access.",
         "Document installation, operation and known limits in README.md.",
         "Do not promote to main, publish or deploy.",

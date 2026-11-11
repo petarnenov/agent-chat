@@ -4,6 +4,7 @@ Date: 2026-10-26
 Status: Accepted by the owner on 2026-10-26, after reviewing the research and
 stating "Приемам препоръката". The decision binds the routing change; nothing is
 installed yet.
+Amended by [ADR 0004](0004-jev-on-typesafe.md) on 2026-11-12.
 
 ## Context
 
@@ -21,13 +22,17 @@ determinism, audit, and revocation. Their conclusion is that a framework solves
 none of the three hard requirements and duplicates the state machine the product
 must own.
 
+Note (2026-11-12): the owner's D8 amendment removed votes and rounds; JEV
+selects one consul. [ADR 0004](0004-jev-on-typesafe.md) records the changes.
+
 ## Decision
 
 1. **No agent framework.** The agent runtime is one model port, not a loop.
 2. **Stack:** `ai` 7.0.153 with `@ai-sdk/openai-compatible` 3.0.78 and `zod`,
    behind a `ModelPort` interface with two adapters: an OpenAI-compatible
    adapter and a fake adapter for tests. Versions are the ones observed on
-   2026-10-25 and are pinned when the dependency is added.
+   2026-10-25 and are pinned when the dependency is added. Superseded by
+   [ADR 0004](0004-jev-on-typesafe.md): the adapter uses `@typesafe-ai/sdk`.
 3. **Tests:** `ai/test` `MockLanguageModelV4` for deterministic tests, plus a
    fake adapter that can return refusals, timeouts, invalid JSON, and duplicate
    deliveries.
@@ -37,13 +42,16 @@ must own.
    `(deliberation_id, round, agent_id)` and an epoch column that the service edge
    checks on every request. The audit insert is synchronous and stays inside the
    400 ms budget. OpenTelemetry spans are emitted by the application, not by a
-   vendor exporter.
+   vendor exporter. Since [ADR 0004](0004-jev-on-typesafe.md) there is no
+   `votes` table and no `round` column.
 5. **XState is optional and deferred.** Its model matches a deterministic state
    machine, but the truth of this machine is rows in PostgreSQL, and an in-memory
    statechart would be a second representation of the same state. Adopt it only
    if the transitions outgrow the table.
 6. **No dependency is added by this ADR.** `ai`, `@ai-sdk/openai-compatible`, and
    `zod` enter `package.json` and the register in the change that implements JEV.
+   Per [ADR 0004](0004-jev-on-typesafe.md), `@typesafe-ai/sdk` and `zod` enter
+   instead.
 
 ## Alternatives rejected
 
