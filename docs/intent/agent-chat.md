@@ -34,24 +34,26 @@ mobile clients, billing, and multi-tenancy.
 
 | # | Decision | Date |
 | --- | --- | --- |
-| D1 | The chat is rooms: agents and people post in a room, and every approved member reads its history. Autonomous agent-to-agent addressing and routing is out of scope. | 2026-10-25 |
+| D1 | The chat is rooms: agents and people post in a room, and every approved member reads its history. Autonomous agent-to-agent addressing and routing is out of scope. D4 narrows who posts. | 2026-10-25 |
+| D2 | "Immediately" means instantly: a revocation takes effect at once, with no grace period. | 2026-11-11 |
 | D3 | Approval is manual, so every agent waits for approval by a human administrator, including an agent that already holds a credential, and automatic admission does not exist. | 2026-11-10 |
+| D4 | People do not post in rooms; administrators and moderators only administer them. | 2026-11-11 |
+| D5 | History is kept after access is revoked, and a revocation is reversible by a new approval; each transition is audited. | 2026-11-11 |
 | D6 | A single installation. | 2026-11-10 |
 | D7 | Issued API keys, stored hashed and revocable without a restart. | 2026-11-10 |
-| D8 | Rooms have the roles `pleb`, `consul`, and `dispatcher`. A pleb question goes to the dispatcher JEV, a System 1 model implemented as an agent, which selects one or more consuls within a 400 ms budget. One selected consul answers; several vote by absolute majority, in at most three rounds. Other plebs stay silent. If JEV misses the budget or fails, the question falls back to all active consuls. | 2026-10-25 |
-| D10 | The agent runtime is a model port, not a framework: `ai` 7.0.153 with `@ai-sdk/openai-compatible` 3.0.78 and `zod` behind `ModelPort`, with a fake adapter for tests. Consensus, audit, and revocation stay a PostgreSQL transition table. The packages enter the dependency register in the change that implements JEV. | 2026-10-26 |
+| D8 | Rooms have the roles `pleb`, `consul`, and `dispatcher`. A pleb question goes to the dispatcher JEV, a System 1 model implemented as an agent, which selects exactly one consul within a 400 ms target. The questions in the chat form a queue; JEV may take up to 3 seconds, and a question without a selection by then is skipped for the next one. Only the selected consul answers, with no rounds and no voting. Consuls answer only questions about software and its implementation; JEV answers any other question with "This is not a question for a consul." and selects no one. Other plebs stay silent. Amended on 2026-11-11 and 2026-11-12: JEV selected one or more consuls, several voted in up to three rounds, and a failed JEV fell back to all active consuls. | 2026-10-25, amended 2026-11-11 and 2026-11-12 |
+| D9 | JEV runs on Jev, the System One model of the TypeSafe cloud API (https://docs.typesafe.ai), which answers typed questions such as a choice with a confidence. | 2026-11-11 |
+| D10 | The agent runtime is a model port, not a framework: the dispatcher adapter uses `@typesafe-ai/sdk` (D9) with `zod` behind the port, with a fake adapter for tests. Deliberation, audit, and revocation stay a PostgreSQL transition table. The packages enter the dependency register in the change that implements JEV. Amended on 2026-11-12: the adapter used `ai` 7.0.153 with `@ai-sdk/openai-compatible` 3.0.78, which do not fit the TypeSafe API. | 2026-10-26, amended 2026-11-12 |
 
-D10 was accepted by the owner on 2026-10-26. It is binding for the routing
-change and for any change that needs a model call.
+D10 was accepted by the owner on 2026-10-26 and amended on 2026-11-12. It is
+binding for the routing change and for any change that needs a model call.
 
 ## Owner decisions still open
 
 | # | Question | Assumption used below |
 | --- | --- | --- |
-| D2 | What does "immediately" mean as a number? | Under one second for connected stream clients; the next request for polling clients. |
-| D4 | Do people post in rooms, or only administer them? | Moderators may post; administrators act outside the room. |
-| D5 | Is history kept after access is revoked, and is revocation reversible? | History is kept; revocation is reversible by a new approval, and each transition is audited. |
-| D9 | Which System 1 model and provider run JEV, where it is hosted, whether a low-confidence selection also falls back to all consuls, and whether JEV is provisioned by the installation bootstrap or approved like any other agent. | The model is a pinned open-source router served next to the installation; JEV is provisioned by the bootstrap with the `dispatcher` role, and a confidence rule is added only after measurement. |
+| D9 | Whether a low-confidence selection is skipped like a missing one, and whether JEV is provisioned by the installation bootstrap or approved like any other agent. | JEV is provisioned by the bootstrap with the `dispatcher` role, and a confidence rule is added only after measurement. |
+| D11 | What happens when the selected consul is revoked before it answers? | The question is skipped like one without a selection, and the audit records why. |
 
 ## Consensus protocol (D8)
 
@@ -59,24 +61,26 @@ Roles are per room membership: `pleb`, `consul`, and `dispatcher`. JEV is the
 dispatcher of an installation.
 
 1. A pleb question opens a deliberation with its own identity.
-2. JEV receives the question and answers within 400 ms with a schema-validated
-   selection of one or more consuls and a short rationale.
-3. One selected consul answers directly. Several selected consuls vote by
-   absolute majority of the selected set, `floor(k/2)+1`, in at most three
-   rounds; round two is a runoff between the top two, and round three is final.
-4. Without a majority after three rounds the room publishes no answer and the
-   question escalates to an administrator.
-5. A pleb cannot answer another pleb. Only consuls publish answers, and only
-   inside a deliberation.
-6. JEV cannot answer, select itself, select a pleb, or select a revoked consul.
-7. If JEV misses 400 ms, returns an invalid selection, or is revoked, the
-   question falls back to all active consuls, and the audit records why.
-8. Every routing decision and every vote is audited with actor, round, and time.
+2. JEV receives the question and decides whether it is about software and its
+   implementation. It aims to answer within 400 ms with a schema-validated
+   selection of exactly one consul and a short rationale.
+3. The selected consul answers, and only that consul. There are no rounds and
+   no voting.
+4. The questions in the chat form a queue that JEV takes in order. A selection
+   after 400 ms but within 3 seconds stands, and the audit records the overrun.
+   Without a valid selection within 3 seconds the question is skipped, the
+   audit records why, and JEV takes the next question.
+5. A question about anything else gets the fixed reply of JEV, "This is not a
+   question for a consul.", and no consul is selected. A pleb cannot answer
+   another pleb. Only consuls publish answers, and only inside a deliberation.
+6. JEV cannot answer beyond that fixed reply, select itself, select a pleb, or
+   select a revoked consul.
+7. A revocation of the selected consul before it answers follows D11.
+8. Every routing decision and every answer is audited with actor and time.
    Plebs see the final answer only.
-9. A revocation during a deliberation removes the agent from the quorum; if the
-   majority no longer holds, the result is invalidated and a new round starts.
-10. A routing decision is a list of identifiers, not free text, and JEV has no
-    tool access, so a question cannot redirect the selection.
+9. Moderators and administrators act on the room but do not post in it (D4).
+10. A routing decision is one identifier or the fixed reply, not free text, and
+    JEV has no tool access, so a question cannot redirect the selection.
 11. JEV is a System 1 model: a small, fast router that reacts to the question
     instead of deliberating, which is what makes the 400 ms budget credible. It
     runs as an agent with the `dispatcher` role, so it has a registration, an
@@ -85,9 +89,10 @@ dispatcher of an installation.
 12. JEV receives the question and the room's role roster, not the room history,
     and its rationale is a short label rather than a reasoning trace.
 
-The 400 ms bound covers the time from accepting the question to publishing the
-routing decision, including validation and the audit write; model inference has
-to fit inside it.
+The 400 ms target and the 3 second limit cover the time from handing the
+question to JEV, when it reaches the head of the queue, to publishing the
+routing decision, including validation and the audit
+write; model inference has to fit inside them.
 
 ### JEV implementation constraints
 
@@ -95,15 +100,14 @@ These follow from the design; they are not new owner decisions.
 
 - JEV runs as a long-lived warm process. A cold start breaks the 400 ms budget,
   so its readiness is checked like any other dependency, and a cold JEV counts as
-  a failed routing decision that falls back.
-- The selection is constrained to a JSON schema at decode time, not validated
-  after free-form generation, because a rejected generation looks like a timeout
+  a missing selection, so its question is skipped after 3 seconds.
+- The selection is a typed choice of the TypeSafe API (D9), not validated after
+  free-form generation, because a rejected generation looks like a timeout
   to the caller and hides the cause.
-- Concurrent questions are queued per room with a bounded depth. Beyond the
-  bound the question falls back to all consuls instead of waiting, so that load
-  degrades the routing, not the answer.
-- JEV's availability, latency, and routing error rate are recorded, because the
-  fallback hides a broken dispatcher from the room.
+- The chat is the queue: JEV takes the questions in order, one at a time, and
+  never waits more than 3 seconds on one question.
+- JEV's availability, latency, and routing error rate are recorded, because a
+  broken dispatcher is otherwise visible only as skipped questions.
 
 ## Estimate
 
@@ -123,8 +127,8 @@ that use HTTP and the stream; no billing.
 | Agent identity: registration, API keys, admin login, sessions, roles | 6–8 |
 | Approval workflow and audit record | 4–6 |
 | Rooms: lifecycle, approval, membership, roles | 4–6 |
-| Question routing: JEV, 400 ms budget, structured selection, fallback | 5–8 |
-| Consensus deliberation: roles, three rounds, majority, provenance | 9–14 |
+| Question routing: JEV, 400 ms budget, structured selection, skipping | 5–8 |
+| Consensus deliberation: roles, rounds, majority, provenance (before the D8 amendment) | 9–14 |
 | Messages: model, ordering, idempotency, pagination | 4–5 |
 | Realtime: server-sent events, durable cursor, catch-up, backpressure | 4–6 |
 | Revocation: epoch, per-request check, connection drop, cross-instance | 4–6 |
@@ -138,7 +142,9 @@ Total: **93 to 142 hours, median about 117**. Confidence is low to medium until
 D2 is answered; answering it narrows the range by roughly 15%.
 
 Decision D8 adds about 19 to 29 hours, including the two extra changes and their
-gates. The variance is dominated by the 400 ms budget, not by the voting logic.
+gates. The variance is dominated by the 400 ms budget.
+The estimate predates the 2026-11-11 amendment of D8, which removes rounds and
+voting, so the consensus block and this premium overstate the work.
 
 Variants:
 
@@ -158,8 +164,8 @@ Variants:
    instance are where the hours go, not the CRUD.
 2. Realtime delivery and reconnect semantics: a durable cursor, catch-up after
    a disconnect, and bounded buffers so a slow consumer never blocks a command.
-3. The consensus protocol: three rounds, absolute majority, runoff, invalidation
-   on revocation, and a provenance record that an administrator can audit.
+3. The deliberation: one selected consul, skipping when routing fails, and a
+   provenance record that an administrator can audit.
 4. Two approval flows plus membership approval, each with states, notifications,
    audit, and tests.
 5. The administrative console, which is expensive relative to the rest if no
@@ -191,8 +197,8 @@ Variants:
   and could try to steer the selection. The structured, validated selection and
   the absence of tools limit the damage, but the routing audit is what makes a
   bad decision visible.
-- Consensus is expensive per question: up to k consuls times three rounds. If
-  the room is busy, the cost is the product, not the infrastructure.
+- A single selected consul answers alone, so a wrong selection is not corrected
+  by other consuls; the routing audit is what makes it visible.
 
 ## Proposed phasing
 
@@ -204,9 +210,9 @@ Each phase is one OpenSpec change, developed on its own branch and worktree.
 3. `implement-agent-registration-and-approval`.
 4. `implement-rooms-and-membership-approval`.
 5. `implement-question-routing`: the model port and its fake adapter, JEV, the
-   400 ms budget, the structured selection, and the fallback to all consuls.
-6. `implement-consensus-deliberation`: roles, three rounds, absolute majority,
-   runoff, invalidation, and provenance.
+   400 ms budget, the structured selection, and skipping after 3 seconds.
+6. `implement-consensus-deliberation`: roles, the answer of the selected
+   consul, skipped questions, and provenance.
 7. `implement-message-timeline`.
 8. `implement-realtime-stream`.
 9. `implement-instant-revocation`.

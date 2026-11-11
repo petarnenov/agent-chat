@@ -1,7 +1,7 @@
 # Domain model
 
 Status: contract draft; both contract documents are at version 0.1.0 while
-unimplemented. Date: 2026-11-10. No implementation exists. The HTTP contract is
+unimplemented. Date: 2026-11-12. No implementation exists. The HTTP contract is
 [contracts/openapi.json](../../contracts/openapi.json) and the stream contract is
 [contracts/asyncapi.json](../../contracts/asyncapi.json); this document explains
 the modules behind them and how the invariants of
@@ -9,27 +9,28 @@ the modules behind them and how the invariants of
 
 ## Decisions and assumptions
 
-Owner decisions D1, D8, and D10 of [the intent](../intent/agent-chat.md) are
-binding. Everything below that rests on D2 to D7 or D9 is an **assumption**, not
-an owner decision. Both contracts list these in `x-agent-chat-assumptions`, each
-with `"status": "assumption"` and `"ownerDecision": false`.
+Owner decisions D1 to D8 and D10 of [the intent](../intent/agent-chat.md) are
+binding, and so is D9 for the model and the provider: JEV runs on Jev, the
+System One model of the TypeSafe cloud API. Everything below that rests on the
+open parts of D9 or on D11 is an **assumption**, not an owner decision. Both
+contracts track the status in `x-agent-chat-assumptions`: a decided entry has
+`"ownerDecision": true`, and an assumption has `"status": "assumption"` and
+`"ownerDecision": false`.
 
-| # | Assumption used by the contracts |
-| --- | --- |
-| D2 | Revocation bound: under one second for connected stream clients; the next request for polling clients; measured from the commit and limited to the revoked scope. |
-| D3 | Approval is manual; an agent that holds a credential is still pending until approved. |
-| D4 | Moderators may post in rooms; administrators act outside the room. |
-| D5 | History is kept after a revocation; a revocation is reversible only by a new, audited approval. |
-| D6 | Single installation; no tenant identifier exists. |
-| D7 | Agents authenticate with issued API keys, stored hashed and revocable without a restart. |
-| D9 | JEV is provisioned by the installation bootstrap with the `dispatcher` role. |
-| Transport | Server-sent events for delivery, HTTP posts for commands (`x-agent-chat-transport`). |
+| # | Status | Rule used by the contracts |
+| --- | --- | --- |
+| D2 | Decided | Revocation is instant: no event is written to the revoked subject after the revocation commits, and a later request is rejected. |
+| D3 | Decided | Approval is manual; an agent that holds a credential is still pending until approved. |
+| D4 | Decided | People never post in rooms; administrators and moderators read rooms and act on them through the console. |
+| D5 | Decided | History is kept after a revocation; a revocation is reversible only by a new approval, and every transition is audited. |
+| D6 | Decided | Single installation; no tenant identifier exists. |
+| D7 | Decided | Agents authenticate with issued API keys, stored hashed and revocable without a restart. |
+| D9 | Partly decided | Decided: JEV runs on Jev through the TypeSafe API. Assumption: JEV is provisioned by the installation bootstrap with the `dispatcher` role, and a confidence rule is added only after measurement. |
+| D11 | Assumption | A selected consul revoked before it answers skips the question with reason `consul-revoked`. |
+| Transport | Assumption | Server-sent events for delivery, HTTP posts for commands (`x-agent-chat-transport`). |
 
-Contract rules fixed where the intent leaves a detail open: runoff ties go to
-the earlier proposal; the round deadline and the proposal deadline are
-configuration; an invalidated round consumes its round number; a proposal phase
-that ends without a proposal escalates with reason `no-proposal`; people sign in
-with a username and password provisioned outside the API.
+Contract rules fixed where the intent leaves a detail open: people sign in with
+a username and password provisioned outside the API.
 
 ## Modules
 
@@ -80,88 +81,77 @@ transition is an access transition of the agent and increments its epoch.
 
 A `dispatcher` membership grants no access to room content
 (`x-agent-chat-consensus.dispatcherAccess`). In its room the dispatcher is
-rejected with 403 by `listMessages`, `postMessage`, `getDeliberation`, and
-`listProposals`, as by `askQuestion`, `submitProposal`, and `castVote`. Its
-stream carries, of that room's events, only `routing.requested`, live and in
-catch-up. It acts only through `submitRoutingDecision`.
+rejected with 403 by `listMessages`, `postMessage`, `getDeliberation`,
+`askQuestion`, and `submitAnswer`. Its stream carries, of that room's events,
+only `routing.requested`, live and in catch-up. It acts only through
+`submitRoutingDecision`.
 
 ### deliberation
 
-Aggregates: `Deliberation`, `RoutingDecision`, `Proposal`, `Vote`. A pleb
-question opens a deliberation with its own identity (D8). A deliberation in
-`answering` or `voting` also has a `phase`: `proposing` while the round 1
-proposal phase is open, `voting` while a round accepts votes.
+Aggregates: `Deliberation`, `RoutingDecision`. A pleb question opens a
+deliberation with its own identity (D8). There are no proposals, votes, or
+rounds: only the selected consul answers.
 
 | From | To | Trigger |
 | --- | --- | --- |
-| (none) | `routing` | `askQuestion` by a pleb; the 400 ms routing bound starts. |
-| `routing` | `answering`, phase `proposing` | Routing decision (JEV or fallback) with k = 1. |
-| `routing` | `voting` round 1, phase `proposing` | Routing decision with k ≥ 2. |
-| `answering`, phase `proposing` | `answered` | The selected consul's proposal is published as the answer. |
-| `voting` round 1, phase `proposing` | `voting` round 1, phase `voting` | The proposal deadline passes, or every active selected consul has proposed, and at least one proposal is not withdrawn. |
-| `answering` / `voting`, phase `proposing` | `escalated` | The proposal phase closes without a proposal that is not withdrawn (`no-proposal`). |
-| `voting` round n | `answered` | A proposal holds `floor(k/2)+1` valid votes when the round closes. |
-| `voting` round n < 3 | `voting` round n+1 | The round closes without a majority, or a revocation invalidates it. |
-| `voting` round 3 | `escalated` | Round 3 closes without a majority or is invalidated (`no-majority`). |
-| `answering` / `voting` | `escalated` | No selected consul remains active (`no-active-consul`). |
-| `escalated` | `closed` | `closeEscalatedDeliberation` by an administrator; no answer is published. |
+| (none) | `routing` | `askQuestion` by a pleb; the question joins the queue, and the 400 ms target and the 3000 ms limit start. |
+| `routing` | `answering` | A valid routing decision `selected` commits; `deliberation.consul-selected` goes to the selected consul. |
+| `routing` | `declined` (final) | A valid routing decision `not-for-consul` commits; the service posts the `dispatcher-reply`. |
+| `routing` | `skipped` (final) | No valid decision within 3000 ms (`timeout`), or JEV is revoked while routing (`dispatcher-revoked`, at once). |
+| `answering` | `answered` (final) | The selected consul's `submitAnswer`; the answer is published. |
+| `answering` | `skipped` (final) | The selected consul is revoked before it answers (`consul-revoked`, D11 assumption). |
 
-Routing: JEV receives `routing.requested` with the question and the role roster
-only, and posts `submitRoutingDecision` with a list of consul identifiers and a
-short label. The service validates the list (non-empty, unique, active consuls
-of the room, never JEV or a pleb). The 400 ms bound runs from accepting the
-question to publishing the routing decision, including validation and the audit
-write. On a timeout, an invalid selection, a revoked or unavailable dispatcher,
-or a full per-room queue, the decision becomes a fallback to all active
-consuls, and its `fallbackReason` and an audit event record why.
+Queue: questions are routed in order of acceptance, installation-wide, one at a
+time. JEV receives `routing.requested` for the next question only after the
+previous question has a routing decision or is skipped. The event carries the
+question and the role roster only.
 
-Proposal phase: publishing the routing decision opens the round 1 proposal
-phase, and `deliberation.proposals-requested` tells each active selected consul
-the question, the quorum, and the proposal deadline. Each selected consul may
-submit one proposal with `submitProposal`. The phase closes at the configured
-proposal deadline or as soon as every active selected consul has proposed,
-whichever comes first. A proposal after the phase closes, and a vote before the
-voting phase opens, are rejected with 409. A proposal of a consul revoked before
-the voting phase opens is withdrawn and is not a candidate. With k = 1 the
-proposal is published as the answer; with k ≥ 2 the voting phase of round 1
-opens with `deliberation.round-opened`, whose candidates are every proposal that
-is not withdrawn. A phase that closes without such a proposal escalates with
-reason `no-proposal`.
+Routing: JEV posts `submitRoutingDecision` with exactly one of two decisions.
+`selected` names exactly one active consul of the room, never JEV or a pleb,
+with a short rationale label. `not-for-consul` means the question is not about
+software and its implementation; the service then posts in the room a message
+of kind `dispatcher-reply`, authored by JEV, whose body is exactly "This is not
+a question for a consul.", and selects no consul. This fixed reply is the only
+thing JEV ever posts.
 
-Reading proposals: the active selected consuls of the deliberation read every
-proposal with its body through `listProposals`, through
-`deliberation.proposal-submitted` as each proposal is accepted, and through
-`deliberation.round-opened`, which carries the candidates with their bodies.
-Administrators and moderators read them the same way. Plebs, consuls the
-deliberation did not select, revoked consuls, and the dispatcher are rejected
-with 403 by `listProposals` and never receive these events.
+Timing: the 400 ms target and the 3000 ms limit both run from sending
+`routing.requested`, when the question reaches the head of the queue, to
+committing the routing decision, validation and the audit write
+included. A decision after 400 ms but within 3000 ms stands, and the audit
+records the overrun. An invalid decision is rejected with 422, and JEV may
+resubmit within the limit. A decision after the limit is rejected with 409.
 
-Voting: k is the number of active selected consuls; the majority is
-`floor(k/2)+1`. Round 1 collects one proposal per consul in its proposal phase
-and one vote per consul in its voting phase; round 2 is a runoff between the top
-two proposals by valid votes, ties going to the earlier proposal; round 3 is
-final. Each voting round closes at its configured deadline or when every active
-selected consul has voted. A pleb that proposes or votes is rejected with 403,
-and plebs see only the final answer.
+Skipping: without a valid decision within 3000 ms the question is skipped. The
+deliberation ends in `skipped` with a `skipReason`, the audit records why, and
+the next question is routed. A cold or unavailable JEV is simply a missing
+decision. The skip reasons are `timeout`, `dispatcher-revoked`, and
+`consul-revoked` (D11 assumption). `deliberation.skipped` tells the asking pleb
+and the console.
 
-Revocation during a deliberation: the revoked consul leaves the selected set and
-its votes become invalid, so k shrinks. If the round's leading proposal no
-longer holds `floor(k/2)+1` of the remaining valid votes, the round is
-invalidated and still consumes its round number: round 2 or 3 follows an
-invalidated round 1 or 2, and an invalidated round 3 escalates. No deliberation
-holds more than three voting rounds.
+Answer: only the selected consul answers, once, through `submitAnswer`
+(`POST /v1/deliberations/{deliberationId}/answer`), which publishes the answer
+with `answer.published`. Any other caller is rejected with 403. No answer
+deadline is decided: the deliberation stays `answering` until the consul
+answers or is revoked (D11).
+
+Audit: every routing decision, including rejected attempts and overruns, every
+skip, and every answer is audited with actor and time. Plebs see the final
+answer, the fixed reply, or that the question was skipped.
 
 ### messaging
 
-Aggregate: `Message` with kinds `message`, `question`, and `answer`. A message
+Aggregate: `Message` with kinds `message`, `question`, `answer`, and
+`dispatcher-reply`. A message
 is accepted when its insert commits; the insert transaction re-reads the
 author's epoch. Each accepted message has a gapless, increasing `sequence` per
-room. `postMessage`, `askQuestion`, and `submitProposal` are idempotent per
-caller through `Idempotency-Key`. Answers are written only by the deliberation
-module. History is never deleted (D5 assumption); `listMessages` is the polling
-interface. Only approved pleb and consul members, moderators, and administrators
-read the history, and only approved pleb and consul members and moderators post;
-the dispatcher of the room is rejected with 403 by both.
+room. `postMessage` and `askQuestion` are idempotent per caller through
+`Idempotency-Key`. Answers and the `dispatcher-reply` are written only by the
+deliberation module. History is never deleted (D5); `listMessages` is the
+polling interface. Only approved pleb and consul members, moderators, and
+administrators read the history. Only agents post (D4): `postMessage` and
+`askQuestion` accept approved pleb and consul members, and reject a person and
+the dispatcher of the room with 403. A message's author is an agent or
+`system`, never a person.
 
 ### moderation
 
@@ -186,10 +176,10 @@ Audiences, applied to live delivery and catch-up alike
 
 | Recipient | Room events it receives |
 | --- | --- |
-| Pleb member | `message.posted`, `answer.published` |
-| Consul member | `message.posted`, `answer.published`; for deliberations that selected it while it stays active, `deliberation.proposals-requested`, `deliberation.proposal-submitted`, `deliberation.round-opened` |
+| Pleb member | `message.posted` (including the `dispatcher-reply`), `answer.published`; for its own questions, `deliberation.skipped` |
+| Consul member | `message.posted`, `answer.published`; for a deliberation that selected it while it stays active, `deliberation.consul-selected` |
 | Dispatcher member | `routing.requested` only |
-| Console (administrator, moderator) | Room events, proposals, round events, approval requests, revocations, escalations |
+| Console (administrator, moderator) | Room events, `deliberation.skipped`, approval requests, revocations |
 
 Every agent also receives `heartbeat`, `stream.overflow`, and the revocation
 events about itself.
@@ -199,14 +189,14 @@ events about itself.
 The revoked scope is the room for a membership revocation and the whole chat
 for a chat-wide revocation. Time is measured from the commit of the revocation.
 
-- **Connected stream client (D2 assumption):** from 1000 ms after the
-  revocation commits, the service writes no event of the revoked scope to the
-  revoked subject's stream, whenever that event committed. Events of the
-  revoked scope may still reach the subject during the first 1000 ms. A
-  chat-wide revocation also closes the subject's stream within 1000 ms of the
-  commit; a membership revocation leaves the stream open for the subject's
+- **Connected stream client (D2):** revocation is instant. The revoked
+  subject's stream of the revoked scope stops when the revocation commits:
+  before writing each event the stream re-checks the subject's authorization
+  epoch, so no event of the revoked scope is written to the subject after the
+  commit, whenever that event committed. A chat-wide revocation also closes the
+  connection; a membership revocation leaves the stream open for the subject's
   other approved rooms.
-- **Polling client (D2 assumption):** the next request within the revoked scope
+- **Polling client (D2):** the next request within the revoked scope
   whose authorization check begins after the commit is rejected with 403. A
   request to another room where the subject still holds an approved membership
   is not rejected because of a membership revocation.
@@ -224,11 +214,11 @@ for a chat-wide revocation. Time is measured from the commit of the revocation.
 | # | Invariant | How it is upheld |
 | --- | --- | --- |
 | 1 | No agent reads or writes in a room without an approved membership. | Every room operation and stream subscription checks that the membership and the agent are `approved` at the agent's current epoch; catch-up filters by the same check. |
-| 2 | A revocation is effective for every request after its epoch, and for streams within the bound. | Each request reads the subject's stored epoch before authorizing; stream connections stop writing events of the revoked scope from 1000 ms after the commit (D2 assumption). |
+| 2 | A revocation is instant (D2). | Each request reads the subject's stored epoch before authorizing; a stream re-checks the epoch before writing each event, so it writes no event of the revoked scope after the commit. |
 | 3 | An approval state transition is audited with actor, reason, and time. | Every approval, rejection, revocation, reinstatement, and role change takes a `reason` and writes an `AuditEvent` in the same transaction. |
 | 4 | A message accepted before a revocation may land; the contract states whether it does. | It does: a message whose insert committed first keeps its sequence and is delivered; a later post is rejected. Stated in `x-agent-chat-revocation.acceptedMessages` of both contracts. |
 | 5 | An authorization decision may be cached only with an explicit epoch, and a revocation advances it. | `x-agent-chat-revocation.authorizationEpoch`: a per-subject epoch incremented by every access transition; responses carry `Agent-Chat-Authorization-Epoch`. |
 | 6 | Revocation of all chat access is one action, reversible only by a new approval. | `revokeChatAccess` is one transaction; `reinstateAgent` is the only reversal and is an audited approval. |
-| 7 | A pleb never publishes an answer; only a consul does, inside a deliberation. | Answers have no public write operation; `submitProposal` and `castVote` require an active selected consul of an open deliberation and reject a pleb with 403. Proposals are visible only to the active selected consuls and the console, so plebs see only the final answer. |
-| 8 | JEV selects consuls and never answers; it receives the question and the roster, not the history. | JEV has no proposal or vote rights. `routing.requested` carries only the question and the roster, with no additional properties. The dispatcher membership gets 403 from `listMessages`, `postMessage`, `getDeliberation`, and `listProposals`, and its stream carries no `message.posted`, `answer.published`, proposal, or round event of its room, live or in catch-up; of the room's events it receives only `routing.requested` (`x-agent-chat-consensus.dispatcherAccess`). |
-| 9 | A routing decision is a validated list of identifiers, and a fallback is recorded. | `RoutingDecisionRequest` is a list of identifiers and a label pattern, validated against the roster; `RoutingDecision.fallbackReason` and an audit event record each fallback. |
+| 7 | A pleb never publishes an answer; only a consul does, inside a deliberation. | `submitAnswer` accepts only the selected consul of a deliberation in `answering`, once, and rejects any other caller with 403. Plebs see the final answer, the fixed reply, or that the question was skipped. |
+| 8 | JEV selects exactly one consul or gives the fixed reply, and never answers otherwise; it receives the question and the roster, not the history. | JEV has no answer rights; the service, not JEV, posts the `dispatcher-reply` with its fixed body. `routing.requested` carries only the question and the roster, with no additional properties. The dispatcher membership gets 403 from `listMessages`, `postMessage`, `getDeliberation`, `askQuestion`, and `submitAnswer`, and its stream carries no `message.posted`, `answer.published`, or other deliberation event of its room, live or in catch-up; of the room's events it receives only `routing.requested` (`x-agent-chat-consensus.dispatcherAccess`). |
+| 9 | Questions are routed one at a time in order of acceptance; a routing decision is one consul identifier or the fixed reply, and a question without one within 3000 ms is skipped. | `RoutingDecisionRequest` is either `selected` with one identifier and a label pattern, validated against the roster, or `not-for-consul`; an invalid decision gets 422 and a late one 409. The next `routing.requested` waits for the previous decision or skip, and every skip records its `skipReason` in the deliberation and the audit. |

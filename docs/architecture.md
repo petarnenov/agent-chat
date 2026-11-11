@@ -21,7 +21,7 @@ that depend only on ports, and adapters at the edges.
 | --- | --- |
 | `identity` | Agent registration, credentials, approval state, people, sessions, roles. |
 | `rooms` | Room lifecycle, room approval, membership, per-room roles. |
-| `deliberation` | Question routing by the dispatcher JEV, an agent running a System 1 model, and the three-round consensus among selected consuls. |
+| `deliberation` | The question queue, routing by the dispatcher JEV, an agent running a System 1 model, and the answer of the one selected consul. |
 | `messaging` | Messages, ordering, idempotency, pagination, retention. |
 | `moderation` | Access revocation, revocation epochs, audit record. |
 | `delivery` | Realtime stream, durable cursor, catch-up, backpressure. |
@@ -29,8 +29,11 @@ that depend only on ports, and adapters at the edges.
 Ports, at minimum: a store port, a credential port, a clock port, a stream port,
 an audit port, and a model port for one structured call
 ([ADR 0003](decisions/0003-agent-runtime-model-port.md)). Adapters for PostgreSQL
-and HTTP are the first ones; the conformance suite of each port ships with the
-port. No agent framework sits between the application and the model.
+and HTTP are the first ones; the model port's dispatcher adapter uses the
+TypeSafe SDK `@typesafe-ai/sdk`, with a fake adapter for tests
+([ADR 0004](decisions/0004-jev-on-typesafe.md)). The conformance suite of each
+port ships with the port. No agent framework sits between the application and
+the model.
 
 ## Contracts
 
@@ -42,16 +45,17 @@ The contracts come first and every implementation change matches them:
 - [docs/domain/model.md](domain/model.md): the modules, their state
   transitions, the revocation semantics, and how each invariant is upheld.
 
-`make verify` checks both documents with `npm run verify:contracts`. The
-contracts use the intent's assumptions for D2 to D7 and D9, and server-sent
-events for transport, each marked as an assumption; none of them closes an open
-decision below.
+`make verify` checks both documents with `npm run verify:contracts`. Owner
+decisions D2 to D7 are decided and the contracts state them as decisions. Only
+the open parts of D9 and D11, and server-sent events for transport, are
+assumptions, each marked as such; none of them closes an open decision below.
 
 ## Invariants
 
 1. No agent reads or writes in a room without an approved membership.
-2. A revocation is effective for every request after its epoch, and for
-   connected streams within the bound fixed in the contract (see intent D2).
+2. A revocation is instant (intent D2): every request whose authorization
+   check begins after the revocation commits is rejected, and no event is
+   written to the revoked subject's stream after the commit.
 3. An approval state transition is audited with actor, reason, and time.
 4. A message accepted before a revocation may land; the contract states whether
    it does, and the test proves the chosen behavior.
@@ -60,20 +64,25 @@ decision below.
 6. Revocation of all chat access is one action, and it is reversible only by a
    new approval.
 7. A pleb never publishes an answer; only a consul does, inside a deliberation.
-8. JEV selects consuls and never answers the question itself; it receives the
+8. JEV selects exactly one consul or gives the fixed reply "This is not a
+   question for a consul.", and never answers otherwise; it receives the
    question and the role roster, not the room history.
-9. A routing decision is a validated list of member identifiers, and a fallback
-   to all active consuls is recorded when JEV cannot produce one.
+9. Questions are routed one at a time in order of acceptance. A routing decision
+   is one validated consul identifier or the fixed reply, and a question
+   without a valid decision within 3000 ms is skipped, with the reason
+   audited.
 
 ## Open decisions
 
 - Transport for agents: server-sent events with HTTP posts, or WebSocket.
   The default in the intent is server-sent events.
 - Credential format and storage: hashed API keys by default.
-- Whether moderators may post in rooms (intent D4).
-- JEV's System 1 model, provider, and hosting, and whether a low-confidence
-  selection also falls back (intent D9).
-- Retention window and whether revoked history stays readable to administrators.
+- Whether a low-confidence selection is skipped like a missing one, and
+  whether JEV is provisioned by the installation bootstrap (the open parts of
+  intent D9).
+- What happens when the selected consul is revoked before it answers (intent
+  D11); the assumption is that the question is skipped.
+- Retention window; history is kept after a revocation (intent D5).
 - Console technology; no framework is selected yet, and the dependency policy
   requires a recorded evaluation before one is added.
 
