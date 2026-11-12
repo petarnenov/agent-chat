@@ -223,6 +223,7 @@
             "headers": { "Agent-Chat-Authorization-Epoch": { "$ref": "#/components/headers/AuthorizationEpoch" } },
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AgentPage" } } }
           },
+          "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
         }
@@ -240,7 +241,8 @@
             "headers": { "Agent-Chat-Authorization-Epoch": { "$ref": "#/components/headers/AuthorizationEpoch" } },
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Agent" } } }
           },
-          "401": { "$ref": "#/components/responses/Unauthorized" }
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
         }
       }
     },
